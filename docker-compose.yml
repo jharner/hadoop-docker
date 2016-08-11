@@ -1,0 +1,26 @@
+version: '2'
+services:
+  hadoop:
+    image: sequenceiq/hadoop-docker:2.7.1
+    ports:
+      - "9000:9000"
+  hbase:
+    build: ./hbase
+    image: rhbase
+    depends_on: 
+      - hadoop
+    ports:
+      - "60000:60000"
+      - "60010:60010"
+      - "60020:60020"
+      - "60030:60030"
+      - "9090:9090"
+  rstudio:
+    build: ./rstudio
+    image: rhadoop
+    ports:
+      - "8787:8787"
+    depends_on: 
+      - hadoop
+      - hbase
+
