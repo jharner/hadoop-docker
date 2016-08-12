@@ -36,10 +36,12 @@ RUN dpkg -i /tmp/thrift_0.8.0-1_amd64.deb && \
 	ln -s /usr/local/lib/libthrift-0.8.0.so /usr/lib/ && ls -l /usr/lib/libt*
 RUN cd /tmp && R CMD INSTALL rhbase
 
+ADD delayed-init.sh /
+
 EXPOSE 8787
 VOLUME /home/rstudio
 
-CMD ["/init"]
+CMD ["/delayed-init.sh"]
 
 
 	

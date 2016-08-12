@@ -18,6 +18,7 @@ RUN /opt/hbase/bin/hbase-config.sh
 
 ADD hbase-site.xml /opt/hbase/conf/hbase-site.xml
 ADD start-pseudo-distributed.sh /opt/hbase/bin/start-pseudo-distributed.sh
+ADD testConnection.jar /opt/
 
 # zookeeper
 EXPOSE 2181
