@@ -13,6 +13,7 @@ RUN echo "JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> /etc/R/Renviron && \
 	echo "HADOOP_CMD=/opt/hadoop/bin/hadoop" >> /etc/R/Renviron
 ADD hdfs-site.xml /opt/hadoop/etc/hadoop/
 ADD core-site.xml /opt/hadoop/etc/hadoop/
+ADD log4j.properties /opt/hadoop/etc/hadoop/
 ENV HADOOP_PREFIX /opt/hadoop
 ENV HADOOP_COMMON_HOME /opt/hadoop
 ENV HADOOP_HDFS_HOME /opt/hadoop
@@ -26,20 +27,20 @@ RUN cd /tmp/protobuf-2.5.0 && ./configure && make -j4 && make install && cd .. &
 #RUN cd /tmp && wget http://ml.stat.purdue.edu/rhipebin/Rhipe_0.75.2_hadoop-2.tar.gz
 #RUN Rscript -e "install.packages(\"Rhipe_0.75.2_hadoop-2.tar.gz\", repos=NULL, type=\"source\")"
 
-#RUN /opt/hadoop/bin/hdfs namenode -format 
-#RUN /opt/hadoop/bin/hdfs dfs -mkdir /user && /opt/hadoop/bin/hdfs dfs -mkdir /user/rstudio
-#RUN /opt/hadoop/bin/hdfs dfs -chown rstudio /user/rstudio
-
 ADD thrift_0.8.0-1_amd64.deb rhbase.tar.gz /tmp/
 RUN dpkg -i /tmp/thrift_0.8.0-1_amd64.deb && \
 	rm -rf /tmp/thrift_0.8.0-1_amd64.deb && \
 	ln -s /usr/local/lib/libthrift-0.8.0.so /usr/lib/ && ls -l /usr/lib/libt*
 RUN cd /tmp && R CMD INSTALL rhbase
 
+RUN apt-get update && apt-get install -y postgresql-client-9.4 && apt-get clean
+RUN Rscript -e 'install.packages(c("DBI","RPostgreSQL"))'
+
 ADD delayed-init.sh /
 
+
 EXPOSE 8787
-VOLUME /home/rstudio
+#VOLUME /home/rstudio
 
 CMD ["/delayed-init.sh"]
 

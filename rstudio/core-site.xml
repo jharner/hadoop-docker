@@ -19,7 +19,7 @@
 <configuration>
 <property>
 <name>fs.default.name</name>
-<value>hdfs://hadoop</value>
+<value>hdfs://hadoop:9000/</value>
 </property>
 </configuration>
 
