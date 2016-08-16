@@ -7,19 +7,26 @@ services:
       - ./hadoop-data:/hadoop-data
     ports:
       - "9000:9000"
-  hbase:
-    build: ./hbase
-    image: jh-hbase
-    depends_on: 
-      - hadoop
+#  hbase:
+#    build: ./hbase
+#    image: jh-hbase
+#    depends_on: 
+#      - hadoop
+#    ports:
+#      - "60000:60000"
+#      - "60010:60010"
+#      - "60020:60020"
+#      - "60030:60030"
+#      - "9090:9090"
+#    links:
+#      - hadoop
+  postgres:
+    build: ./postgres
+    image: jh-postgres
     ports:
-      - "60000:60000"
-      - "60010:60010"
-      - "60020:60020"
-      - "60030:60030"
-      - "9090:9090"
-    links:
-      - hadoop
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/opt/pgdata
   rstudio:
     build: ./rstudio
     image: jh-rstudio
@@ -27,10 +34,11 @@ services:
       - "8787:8787"
     links:
       - hadoop
-      - hbase
+#      - hbase
+      - postgres
     volumes:
       - ./rstudio-data:/home/rstudio
     depends_on: 
       - hadoop
-      - hbase
+#      - hbase
 

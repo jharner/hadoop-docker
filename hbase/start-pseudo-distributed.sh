@@ -4,7 +4,7 @@ count=0
 #hcmd="/opt/hbase/bin/hadoop fs -ls /"
 hcmd="java -jar /opt/testConnection.jar hdfs://hadoop:9000/"
 echo "testing hadoop connection"
-$hcmd #&> /dev/null
+$hcmd &> /dev/null
 result=$?
 while [ $result -ne 0 ]; do
 	sleep 5
