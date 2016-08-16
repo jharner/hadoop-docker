@@ -1,0 +1,27 @@
+version: '2'
+services:
+  hadoop:
+    image: jharner/r1-hadoop:latest
+    volumes:
+      - ./hadoop-data:/hadoop-data
+    ports:
+      - "9000:9000"
+  postgres:
+    image: jharner/r1-postgres:latest
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/opt/pgdata
+  rstudio:
+    image: jharner/r1-rstudio:latest
+    ports:
+      - "8787:8787"
+    links:
+      - hadoop
+      - postgres
+    volumes:
+      - ./rstudio-data:/home/rstudio
+    depends_on: 
+      - hadoop
+      - postgres
+
