@@ -17,7 +17,7 @@ RUN cd /opt && wget --quiet http://apache.mirrors.hoobly.com/hadoop/common/hadoo
 RUN mkdir native && cd native && wget --quiet https://github.com/sequenceiq/docker-hadoop-build/releases/download/v2.7.1/hadoop-native-64-2.7.1.tgz && tar zxf hadoop-native-64-2.7.1.tgz && rm hadoop-native-64-2.7.1.tgz && cd ..
 RUN rm -rf /opt/hadoop/lib/native && mv native /opt/hadoop/lib
 ENV HADOOP_CMD /opt/hadoop/bin/hadoop
-RUN Rscript -e "install.packages(c(\"rjson\",\"bit64\",\"bit\",\"functional\",\"RJSONIO\",\"R.methodsS3\",\"reshape2\",\"datadr\",\"trelliscope\",\"DBI\",\"RPostgreSQL\"))"
+RUN Rscript -e "install.packages(c(\"rjson\",\"bit64\",\"bit\",\"functional\",\"RJSONIO\",\"R.methodsS3\",\"reshape2\",\"datadr\",\"trelliscope\",\"DBI\",\"RPostgreSQL\",\"RJDBC\"))"
 ADD rhdfs.tar.gz ravro.tar.gz rmr.tar.gz plyrmr.tar.gz rhbase.tar.gz /tmp/pkgs/
 RUN cd /tmp/pkgs && R CMD INSTALL ravro rmr2 plyrmr rhdfs rhbase
 
@@ -27,6 +27,14 @@ RUN cd /opt && \
 	mv spark-2.0.0-bin-without-hadoop spark && \
 	cp spark/conf/spark-env.sh.template spark/conf/spark-env.sh && \
 	echo "export SPARK_DIST_CLASSPATH=$(/opt/hadoop/bin/hadoop classpath)" >> spark/conf/spark-env.sh
+
+RUN cd /opt && \
+	wget --quiet http://apache.mirrors.hoobly.com/hive/hive-2.1.0/apache-hive-2.1.0-bin.tar.gz && \
+	tar zxf apache-hive-2.1.0-bin.tar.gz && \
+	ln -s apache-hive-2.1.0-bin hive && \
+	ln -s /opt/hive/jdbc/hive-jdbc-2.1.0-standalone.jar /opt/hive/lib/ && \
+	rm apache-hive-2.1.0-bin.tar.gz
+
 
 #add necessary mods to Renviron file
 ADD Renviron /etc/R/

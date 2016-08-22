@@ -27,6 +27,12 @@ services:
       - "5432:5432"
     volumes:
       - ./pgdata:/opt/pgdata
+  hive:
+    image: hivedev
+    ports:
+      - "10000:10000"
+    depends_on:
+      - hadoop
   rstudio:
     build: ./rstudio
     image: jh-rstudio
@@ -40,5 +46,5 @@ services:
       - ./rstudio-data:/home/rstudio
     depends_on: 
       - hadoop
-#      - hbase
+      - hive
 

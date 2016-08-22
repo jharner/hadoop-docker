@@ -16,6 +16,8 @@ if ! [ -d "$PGDATA/base" ]; then
 	service postgresql start
 	psql --command "CREATE USER rstudio"
 	createdb -O rstudio rstudio
+	psql --command "CREATE USER hive"
+	createdb -O hive hive
 	cd /usr/share/postgresql/9.4
 	service postgresql stop
 fi
