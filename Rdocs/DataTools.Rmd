@@ -1,0 +1,223 @@
+---
+title: "Module 1: Data Tools"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This module introduces the technologies that will be used in BUDA 515.
+
+## Objectives
+
+By the end or this module, students will be able to:
+
+1. 
+
+## 1.1 Linux
+
+The small cluster for BUDA 515 runs Red Hat Linux distro. 
+
+## 1.2 RStudio Server
+
+RStudio is an integrated development environment (IDE) that runs on all major platforms. We are running RStudio Server Pro on Red Hat Linux.
+
+## 1.3 Version Control
+
+### 1.3.1 Git
+
+### 1.3.2 GitHub
+
+### 1.3.3 BitBucket
+
+## 1.4 The Data Science Workflow
+
+The Master of Science (MS) in Business Data Analytics (BUDA) spans the entire data science workflow or process. The most common version of this process is illustrated by:  
+![The Data Science Process](figures/dsciProcess.png)
+
+BUDA 515 will focus on the items along the top, i.e., raw data is collected, data is processed, and data is cleaned. Exploratory data analyses will also be covered.
+
+## 1.5 Hadoop
+
+Hadoop was designed for:
+
+* large-scale log processing  
+* batch-oriented ETL (extract-transform-load) operations.  
+
+Hadoop consists of four principal modules:
+
+* Hadoop Common: general utilities supporting other modules.  
+* Hadoop Distributed File System (HDFS): a distributed file system for high-throughput access to data.  
+* Hadoop YARN: a framework for job scheduling and cluster resource management.  
+* Hadoop MapReduce: a YARN-based system for parallel process of big data.  
+
+### 1.5.1 R Interfaces to Hadoop
+
+This course primarily uses [RHadoop](https://github.com/RevolutionAnalytics/RHadoop/wiki) as an interfaces to Hadoop. It consists of the following R packages:  
+
+* rhdfs provides basic connectivity to HDFS. R programmers can browse, read, write, and modify files stored in HDFS from within R.  
+* rhbase provides basic connectivity to the HBASE distributed database. R programmers can browse, read, write, and modify tables stored in HBASE from within R.  
+* plyrmr enables the R user to perform common data manipulation operations, as found in popular packages such as `plyr` and `reshape2`, on very large data sets stored on Hadoop. Like `rmr`, it relies on Hadoop MapReduce to perform its tasks, but it provides a familiar plyr-like interface while hiding many of the MapReduce details.
+* rmr2 allows R developer to perform statistical analysis in R via Hadoop MapReduce functionality on a Hadoop cluster.  
+* ravro adds the ability to read and write `avro` files from local and HDFS file system and adds an `avro` input format for `rmr2`.
+
+R scripts will also be run.
+
+### 1.5.2 HDFS (Hadoop Distributed File System)
+
+#### Data Storage and Analysis
+
+The storage capacities of hard drives have greatly increased over the years, but access speeds have not kept up. The solution is to read/ write in parallel.
+
+However, beyond parallelization two problems remain:
+
+* redundant copies of data are needed;
+
+> If drives fail another copy is available (RAID). The Hadoop Distributed Filesystem (HDFS), takes a somewhat different approach.    
+
+* the movement of data to the computation.
+
+HDFS was designed to overcome both these problems.
+
+Initially, we must put data into HDFS (or HBASE) for analysis. This can be done in R (rather than the UNIX command line) using the RHadoop package `rhdfs`. Once the library is loaded, it must be initiated.
+
+```{r}
+options(warn=-1)
+library(rhdfs)
+hdfs.init()
+```
+
+You must have an accout on our installed HDFS. The directories and files in my home directory are listed by the `hdfs.ls` function.
+```{r}
+hdfs.ls(path="/user/rstudio")
+```
+For a full list of hdfs functions see the help pages for the `rhdfs` package.
+
+#### My first mapreduce job
+
+`mapreduce` is not very different than a combination of `lapply` and `tapply`: transform elements of a list, compute an index (key in mapreduce jargon) and process the resulting groups.
+
+```{r}
+library(rmr2)
+
+# Using sapply:
+small.ints = 1:100
+sapply(small.ints, function(x) x^2)
+
+# Using mapreduce: note that rmr2 has its own interface with hdfs
+small.ints = to.dfs(1:100)
+
+out.data <- mapreduce(
+  input = small.ints,
+  map = function(k, v) cbind(v, v^2))
+
+out.data <- from.dfs(out.data)
+str(out.data)
+head(out.data$val)
+```
+The first line puts the data into HDFS, where the bulk of the data has to reside for `mapreduce` to operate on. Don't use `to.dfs` to write out big data since it is not scalable. `to.dfs` is nonetheless very useful for a variety of uses like writing test cases, learning and debugging. `to.dfs` can put the data in a file of your own choosing, but if you don't specify one it will create temp files and clean them up when done. The return value is something we call a `big.data.object`. You can assign it to variables, pass it to other `rmr` functions, `mapreduce` jobs, or read it back in. It is a stub, that is the data is not in memory, only some information that helps finding and managing the data.
+
+The second line, i.e., `mapreduce`, replaces `lapply`. We prefer named arguments with mapreduce because there's quite a few possible arguments, but it's not mandatory. The input is the variable `small.ints` which contains the output of `to.dfs`. This is a stub for our small number data set in its HDFS version, but it could be a file path or a list containing a mix of both. The function to apply, which is called a `map` function as opposed to the `reduce` function, which we are not using here, is a regular R function with a few constraints:
+
+1. It's a function of two arguments, a collection of keys and one of values.  
+
+2. It returns key-value pairs using the function `keyval`, which can have vectors, lists, matrices or data.frames as arguments; you can also return `NULL`. You can avoid calling `keyval` explicitly but the return value `x` will be converted with a call to `keyval(NULL,x)`. This is not allowed in the `map` function when the `reduce` function is specified and under no circumstance in the `combine` function, since specifying the key is necessary for the shuffle phase.
+
+ The return value is `big.data.object`, and you can pass it as input to other jobs or read it into memory with `from.dfs`. `from.dfs` is complementary to `to.dfs` and returns a key-value pair collection. `from.dfs` is useful in defining map reduce algorithms whenever a mapreduce job produces something of reasonable size, like a summary, that can fit in memory and needs to be inspected to decide on the next steps, or to visualize it. It is much more important than to.dfs in production work.
+
+### 1.5.3 Hive
+
+A data warehouse infrastructure that provides data summarization and ad hoc querying. It provides facilities for reading, writing, and managing large datasets residing in distributed storage using SQL.
+
+```
+library(RJDBC)
+
+# Load Hive JDBC driver
+hivedrv <- JDBC("org.apache.hadoop.hive.jdbc.HiveDriver",
+                c(list.files("/home/amar/hadoop/hadoop",pattern="jar$",full.names=T),
+                  list.files("/home/amar/hadoop/hive/lib",pattern="jar$",full.names=T)))
+
+# Connect to Hive service
+hivecon <- dbConnect(hivedrv, "jdbc:hive://ip:port/default")
+query = "select * from mytable LIMIT 10"
+hres <- dbGetQuery(hivecon, query)
+```
+
+### 1.5.4 HBase
+
+A scalable, distributed database that supports structured data storage for large tables.
+
+```
+library(rhbase)
+hb.init(host="hadoop", port=9000)
+```
+
+### 1.5.5 Avro
+
+A data serialization system.
+
+## 1.6 Spark
+
+A fast compute engine for Hadoop data. Spark provides a simple and expressive programming model that supports a wide range of applications, including ETL, machine learning, stream processing, and graph computation.
+
+### 1.6.1 R Interfaces Spark
+
+This course will use two common R interfaces to Hadoop and Spark:  
+
+* [sparklyr](http://spark.rstudio.com/index.html): connection to Spark with a [dplyr](https://github.com/hadley/dplyr) backend  
+* [sparkR](https://spark.apache.org/docs/latest/sparkr.html): a light-weight frontend to Spark from R.
+
+Initially we will foucs on the `sparkR` package interface developed by 
+
+```{r}
+# Set SPARK_HOME if it is not set.
+#if (nchar(Sys.getenv("SPARK_HOME")) < 1) {
+#  Sys.setenv(SPARK_HOME = "/Users/jharner/Work/spark-1.6.2-bin-hadoop2.6")
+#}
+# Load the sparkR library.
+#library(SparkR, lib.loc = c(file.path(Sys.getenv("SPARK_HOME"), "R", "lib")))
+library(SparkR)
+sparkR.session(sparkConfig = list(spark.driver.memory = '2g'))
+```
+You can create a `SparkContext` using `sparkR.init` and pass in options such as the application name , any spark packages depended on, etc.
+#```
+#sc <- sparkR.init(master = "local[*]", sparkEnvir = list(spark.driver.memory="2g"))
+#```
+The returned `SparkContext` (`sc`) connects this R program to the Spark cluster. The `local[*]` value for `master` specifies that Spark will run locally with as many worker threads as logical cores on your machine.
+
+#To work with DataFrames we will need a `SQLContext`, which can be created from the `SparkContext`.
+#```
+#sqlContext <- sparkRSQL.init(sc)
+#```
+
+We can use `createDataFrame` and pass in the local R data frame to create a sparkR DataFrame. The following creates a DataFrame based using the `faithful` dataset from R.
+```
+faithful.df <- as.DataFrame(faithful)
+#faithful.df <- createDataFrame(sqlContext, faithful)
+head(faithful.df)
+```
+
+We now introduce the `sparklyr` package interface developed by RStudio.
+
+```
+library(sparklyr)
+# Sys.setenv(SPARK_HOME = "/Users/jharner/Work/spark-1.6.2-bin-hadoop2.6")
+# sc <- spark_connect(master = "local")
+```
+The returned Spark connection (`sc`) provides a `dplyr` data source to the Spark cluster.
+
+## Learning Activities
+
+## Assessments
+
+## Discussion Questions
+
+## Reading Assignments
+
+Tim White. *Hadoop: The Definitive Guide.*  
+
+Holden Karau, Andy Konwinski, Patrick Wendell and Matei Zaharia. 
+

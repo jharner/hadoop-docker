@@ -25,5 +25,21 @@
 <name>hadoop.proxyuser.super.users</name>
 <value>rstudio</value>
 </property>
+<property>
+<name>hadoop.proxyuser.super.hosts</name>
+<value>*</value>
+</property>
+<property>
+<name>hadoop.proxyuser.hive.users</name>
+<value>*</value>
+</property>
+<property>
+<name>hadoop.proxyuser.hive.groups</name>
+<value>*</value>
+</property>
+<property>
+<name>hadoop.proxyuser.hive.hosts</name>
+<value>*</value>
+</property>
 </configuration>
 

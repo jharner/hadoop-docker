@@ -8,15 +8,20 @@ export HADOOP_HOME=/opt/hadoop
 
 until psql -h postgres -U hive -c 'select 1' >/dev/null 2>&1; do
 	>2& echo "waiting on postgres"
-	sleep 2
+	sleep 4
 done
+
+sleep 10
 
 if [ ! -e /opt/hive.schema.inited ]; then
 	echo "initing hive schema"
-	/opt/hive/bin/schematool -initSchema -dbType postgres
+	su rstudio /opt/hive/bin/schematool -initSchema -dbType postgres
 	touch /opt/hive.schema.inited
+	/opt/hive/bin/hive -S -e "create database if not exists rstudio;"
 fi
+
+/opt/hadoop/bin/hdfs dfs -chown -R rstudio:rstudio /user/hive
 
 echo "starrting hiveserver2"
 
-/opt/hive/bin/hiveserver2
+su rstudio /opt/hive/bin/hiveserver2

@@ -10,7 +10,7 @@ rm /tmp/*.pid
 cd $HADOOP_PREFIX/share/hadoop/common ; for cp in ${ACP//,/ }; do  echo == $cp; curl -LO $cp ; done; cd -
 
 # altering the core-site configuration
-sed s/HOSTNAME/$HOSTNAME/ /usr/local/hadoop/etc/hadoop/core-site.xml.template > /usr/local/hadoop/etc/hadoop/core-site.xml
+#sed s/HOSTNAME/$HOSTNAME/ /usr/local/hadoop/etc/hadoop/core-site.xml.template > /usr/local/hadoop/etc/hadoop/core-site.xml
 
 if [[ ! -d /hadoop-data/ ]]; then
 	echo "hadoop data directory missing"
@@ -35,7 +35,7 @@ PATH=/usr/local/hadoop/bin:$PATH
 if [[ $CREATEDIR == 1 ]]; then
 	sleep 2
 	echo "creating hdfs directory structure"
-	for aPath in /tmp /user/rstudio; do
+	for aPath in /tmp /user; do
 		hdfs dfs -test -d hdfs://127.0.0.1:9000/$aPath
 		if [ $? == 1 ]; then
 			hdfs dfs -mkdir -p $aPath
@@ -45,6 +45,14 @@ if [[ $CREATEDIR == 1 ]]; then
 	done
 	echo "hdfs setup complete"
 fi
+
+hdfs dfs -test -d hdfs://127.0.0.1:9000/rstudio
+if [ $? == 1 ]; then
+	hdfs dfs -mkdir -p /user/rstudio
+	hdfs dfs -chown rstudio:rstudio /user/rstudio
+	hdfs dfs -chmod 777 /user/rstudio
+fi
+
 
 if [[ $1 == "-d" ]]; then
   while true; do sleep 1000; done
