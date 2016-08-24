@@ -11,7 +11,7 @@ until psql -h postgres -U hive -c 'select 1' >/dev/null 2>&1; do
 	sleep 4
 done
 
-sleep 10
+sleep 30
 
 if [ ! -e /opt/hive.schema.inited ]; then
 	echo "initing hive schema"
