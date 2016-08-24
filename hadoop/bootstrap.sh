@@ -53,6 +53,13 @@ if [ $? == 1 ]; then
 	hdfs dfs -chmod 777 /user/rstudio
 fi
 
+hdfs dfs -test -d hdfs://127.0.0.1:9000/hive
+if [ $? == 1 ]; then
+	hdfs dfs -mkdir -p /user/hive
+	hdfs dfs -chown rstudio:rstudio /user/hive
+	hdfs dfs -chmod 777 /user/hive
+fi
+
 
 if [[ $1 == "-d" ]]; then
   while true; do sleep 1000; done
