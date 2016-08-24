@@ -15,7 +15,7 @@ sleep 30
 
 if [ ! -e /opt/hive.schema.inited ]; then
 	echo "initing hive schema"
-	su "/opt/hive/bin/schematool -initSchema -dbType postgres" rstudio
+	su -lc "/opt/hive/bin/schematool -initSchema -dbType postgres" rstudio
 	touch /opt/hive.schema.inited
 	/opt/hive/bin/hive -S -e "create database if not exists rstudio;"
 fi
@@ -24,4 +24,4 @@ fi
 
 echo "starrting hiveserver2"
 
-su rstudio /opt/hive/bin/hiveserver2
+su -lc /opt/hive/bin/hiveserver2 rstudio
