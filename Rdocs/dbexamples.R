@@ -1,6 +1,6 @@
 library(RPostgreSQL)
 drv <- dbDriver("PostgreSQL")
-con <- dbConnect(drv, host="postgres", dbname='example')
+con <- dbConnect(drv, host="postgres", dbname='dataexpo')
 
 meas <- dbGetQuery(con, "select * from location_table")
 
