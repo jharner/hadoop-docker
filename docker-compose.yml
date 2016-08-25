@@ -4,7 +4,7 @@ services:
     build: ./hadoop
     image: jh-hadoop
     volumes:
-      - ./hadoop-data:/hadoop-data
+      - ./data/hadoop:/hadoop-data
     ports:
       - "9000:9000"
 #  hbase:
@@ -26,9 +26,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./pgdata:/opt/pgdata
+      - ./data:/opt/data
   hive:
-    image: hivedev
+    image: jh-hive
     ports:
       - "10000:10000"
     depends_on:
@@ -43,7 +43,7 @@ services:
 #      - hbase
       - postgres
     volumes:
-      - ./rstudio-data:/home/rstudio
+      - ./data/rstudio:/home/rstudio
     depends_on: 
       - hadoop
       - hive

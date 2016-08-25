@@ -1,15 +1,15 @@
 #!/bin/bash
 
-PGVersion=$1
+DATA="/opt/data"
+PGDATA="${DATA}/pg-data"
+PGVersion="9.4"
 
-if [ -z "$PGVersion" ]; then
-	echo "postgres version not specified"
-	exit 1
-fi
+export LANG=en_US.UTF-8
+export LANGUAGE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 
-PGDATA="/opt/pgdata"
+sleep 6
 
-#eventually we'll need to check schema version number via metadata table
 if ! [ -d "$PGDATA/base" ]; then
 	echo "$PGDATA does not exist. creating database"
 	/usr/lib/postgresql/9.4/bin/initdb -D $PGDATA
@@ -18,6 +18,11 @@ if ! [ -d "$PGDATA/base" ]; then
 	createdb -O rstudio rstudio
 	psql --command "CREATE USER hive"
 	createdb -O hive hive
+	createdb -O rstudio example
+	for file in $DATA/pg-example/*.sql; do
+		cat $file | psql -U rstudio example >/dev/null
+	done
+	psql --command "GRANT ALL PRIVILEGES ON DATABASE example TO rstudio"
 	cd /usr/share/postgresql/9.4
 	service postgresql stop
 fi

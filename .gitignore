@@ -2,3 +2,6 @@ hadoop-data
 rstudio-data
 hbase/testConnection.jar
 pgdata
+data/pg-data
+data/hadoop
+data/rstudio

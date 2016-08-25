@@ -8,8 +8,8 @@ RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg main" > /etc/
 RUN apt-get update && apt-get install -y python-software-properties software-properties-common postgresql-${pgversion} postgresql-client-${pgversion} postgresql-contrib-${pgversion} libpq-dev
 RUN mkdir -p /opt/pgdata; chown -R postgres /opt/pgdata; chmod 700 /opt/pgdata
 RUN locale-gen en_US.UTF-8
-RUN pg_dropcluster 9.4 main
-RUN pg_createcluster -d /opt/pgdata --locale=en_US.UTF-8 9.4 main
+RUN pg_dropcluster ${pgversion} main
+RUN pg_createcluster -d /opt/pgdata --locale=en_US.UTF-8 ${pgversion} main
 
 USER postgres
 COPY *.conf /etc/postgresql/${pgversion}/main/
