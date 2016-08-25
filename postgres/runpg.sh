@@ -14,15 +14,15 @@ if ! [ -d "$PGDATA/base" ]; then
 	echo "$PGDATA does not exist. creating database"
 	/usr/lib/postgresql/9.4/bin/initdb -D $PGDATA
 	service postgresql start
-	psql --command "CREATE USER rstudio"
+	psql --command "CREATE USER rstudio createdb"
 	createdb -O rstudio rstudio
 	psql --command "CREATE USER hive"
 	createdb -O hive hive
-	createdb -O rstudio example
+	createdb -O rstudio dataexpo
 	for file in $DATA/pg-example/*.sql; do
-		cat $file | psql -U rstudio example >/dev/null
+		cat $file | psql -U rstudio dataexpo >/dev/null
 	done
-	psql --command "GRANT ALL PRIVILEGES ON DATABASE example TO rstudio"
+	psql --command "GRANT ALL PRIVILEGES ON DATABASE dataexpo TO rstudio"
 	cd /usr/share/postgresql/9.4
 	service postgresql stop
 fi
