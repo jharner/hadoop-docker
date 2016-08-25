@@ -7,6 +7,10 @@ if [[ "build" -eq $1 ]]; then
 	docker build -t jh-rstudio rstudio
 fi
 
+if [[ "reset" -eq $1 ]]; then
+	rm -rf data/pg-data data/hadoop
+fi
+
 if [[ ! -e data ]]; then
 	mkdir data
 fi
