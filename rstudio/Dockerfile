@@ -20,6 +20,7 @@ ENV HADOOP_CMD /opt/hadoop/bin/hadoop
 RUN Rscript -e "install.packages(c(\"rjson\",\"bit64\",\"bit\",\"functional\",\"RJSONIO\",\"R.methodsS3\",\"reshape2\",\"datadr\",\"trelliscope\",\"DBI\",\"RPostgreSQL\",\"RJDBC\", \"sparklyr\"))"
 ADD rhdfs.tar.gz ravro.tar.gz rmr.tar.gz plyrmr.tar.gz rhbase.tar.gz /tmp/pkgs/
 RUN cd /tmp/pkgs && R CMD INSTALL ravro rmr2 plyrmr rhdfs rhbase
+RUN Rscript -e "devtools::install_github(\"rstudio/sparklyr\")"
 
 RUN cd /opt && \
 	wget --quiet http://apache.mirrors.hoobly.com/spark/spark-1.6.2/spark-1.6.2-bin-without-hadoop.tgz && \
