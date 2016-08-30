@@ -12,7 +12,7 @@ RUN pg_dropcluster ${pgversion} main
 RUN pg_createcluster -d /opt/pgdata --locale=en_US.UTF-8 ${pgversion} main
 
 USER postgres
-COPY *.conf /etc/postgresql/${pgversion}/main/
+COPY pg_hba.conf postgresql.conf /etc/postgresql/${pgversion}/main/
 COPY runpg.sh /var/lib/postgresql/runpg.sh
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
