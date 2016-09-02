@@ -1,15 +1,29 @@
 #!/bin/sh
 
-if [[ "build" -eq $1 ]]; then
+while [[ $# -gt 0 ]]
+do
+key=$1
+
+case $key in
+	-b|--build|build)
+	shift
 	docker build -t jh-postgres postgres
 	docker build -t jh-hadoop hadoop
 	docker build -t jh-hive hive
 	docker build -t jh-rstudio rstudio
-fi
-
-if [[ "reset" -eq $1 ]]; then
+	;;
+	-r|--reset)
+	echo "resetting data"
+	docker rm hadoop_hadoop_1 hadoop_hive_1 hadoop_postgres_1 hadoop_rstudio_1
 	rm -rf data/pg-data data/hadoop
-fi
+	shift
+	;;
+	*)
+	echo "unknown option $key"
+	exit 1
+	;;
+esac
+done
 
 if [[ ! -e data ]]; then
 	mkdir data

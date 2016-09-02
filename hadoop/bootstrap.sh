@@ -3,6 +3,7 @@
 : ${HADOOP_PREFIX:=/usr/local/hadoop}
 
 $HADOOP_PREFIX/etc/hadoop/hadoop-env.sh
+DATA_DIR=/opt/hadoop
 
 rm /tmp/*.pid
 
@@ -12,16 +13,16 @@ cd $HADOOP_PREFIX/share/hadoop/common ; for cp in ${ACP//,/ }; do  echo == $cp; 
 # altering the core-site configuration
 #sed s/HOSTNAME/$HOSTNAME/ /usr/local/hadoop/etc/hadoop/core-site.xml.template > /usr/local/hadoop/etc/hadoop/core-site.xml
 
-if [[ ! -d /hadoop-data/ ]]; then
-	echo "hadoop data directory missing"
+if [[ ! -d ${DATA_DIR} ]]; then
+	echo "hadoop data directory missing (${DATA_DIR})"
 	exit 1
 fi
 
 CREATEDIR=0
-if [[ ! -d /hadoop-data/nn ]]; then
-	rm -rf /hadoop-data/*
+if [[ ! -d /${DATA_DIR}/nn ]]; then
+	rm -rf /${DATA_DIR}/nn /${DATA_DIR}/dfs
 	echo "running namenode init"
-	/usr/local/hadoop/bin/hdfs namenode -format
+	/usr/local/hadoop/bin/hdfs namenode -format -force
 	CREATEDIR=1
 fi
 

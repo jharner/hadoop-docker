@@ -10,6 +10,7 @@ RUN mkdir -p /opt/pgdata; chown -R postgres /opt/pgdata; chmod 700 /opt/pgdata
 RUN locale-gen en_US.UTF-8
 RUN pg_dropcluster ${pgversion} main
 RUN pg_createcluster -d /opt/pgdata --locale=en_US.UTF-8 ${pgversion} main
+COPY dataexpo.sql /opt/
 
 USER postgres
 COPY pg_hba.conf postgresql.conf /etc/postgresql/${pgversion}/main/
@@ -20,4 +21,4 @@ ENV LC_ALL en_US.UTF-8
 
 EXPOSE 5432
 
-CMD ["var/lib/postgresql/runpg.sh", "9.4"]
+CMD ["var/lib/postgresql/runpg.sh", "${pgversion}"]

@@ -4,6 +4,6 @@ ADD bootstrap.sh /etc/
 ADD core-site.xml hdfs-site.xml /usr/local/hadoop/etc/hadoop/
 ADD log4j.properties /usr/local/hadoop/etc/hadoop/
 
-VOLUME ["/hadoop-data"]
+VOLUME ["/data"]
 
 RUN useradd -u 1000 -s /bin/bash -m -d /home/rstudio rstudio
