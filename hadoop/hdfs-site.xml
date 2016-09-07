@@ -27,7 +27,7 @@
 </property>
 <property>
 	<name>dfs.name.dir</name>
-	<value>file:///opt/data/hadoop/nn</value>
+	<value>file:///opt/hadoop/nn</value>
 </property>
 <property>
 	<name>dfs.data.dir</name>

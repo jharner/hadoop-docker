@@ -18,6 +18,11 @@ if [[ ! -d ${DATA_DIR} ]]; then
 	exit 1
 fi
 
+service sshd start
+
+chown -R rstudio ${DATA_DIR}
+
+echo "as rstudio using hadoop ${HADOOP_PREFIX}"
 CREATEDIR=0
 if [[ ! -d /${DATA_DIR}/nn ]]; then
 	rm -rf /${DATA_DIR}/nn /${DATA_DIR}/dfs
@@ -26,7 +31,6 @@ if [[ ! -d /${DATA_DIR}/nn ]]; then
 	CREATEDIR=1
 fi
 
-service sshd start
 $HADOOP_PREFIX/sbin/start-dfs.sh
 $HADOOP_PREFIX/sbin/start-yarn.sh
 
@@ -60,7 +64,6 @@ if [ $? == 1 ]; then
 	hdfs dfs -chown rstudio:rstudio /user/hive
 	hdfs dfs -chmod 777 /user/hive
 fi
-
 
 if [[ $1 == "-d" ]]; then
   while true; do sleep 1000; done
