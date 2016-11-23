@@ -6,3 +6,4 @@ data/pg-data
 data/hadoop
 data/rstudio
 dist/data
+.Rapp.history
