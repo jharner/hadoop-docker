@@ -7,3 +7,4 @@ data/hadoop
 data/rstudio
 dist/data
 .Rapp.history
+.DS_Store
