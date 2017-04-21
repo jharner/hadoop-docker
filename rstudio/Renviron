@@ -56,6 +56,8 @@ R_LIBS='/opt/spark/R/lib'
 JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 SPARK_HOME=/opt/spark
 HADOOP_CMD=/opt/hadoop/bin/hadoop
+HADOOP_BIN=/opt/hadoop/bin
+HADOOP_HOME=/opt/hadoop
 HADOOP_PREFIX=/opt/hadoop
 HADOOP_COMMON_HOME=/opt/hadoop
 HADOOP_HDFS_HOME=/opt/hadoop
@@ -64,6 +66,6 @@ HADOOP_YARN_HOME=/opt/hadoop
 HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop
 YARN_CONF_DIR=$HADOOP_PREFIX/etc/hadoop
 HADOOP_USER_NAME=rstudio
-HADOOP_STREAMING=/opt/hadoop/share/hadoop/tools/lib/hadoop-streaming-2.7.2.jar
-CLASSPATH='/opt/hive/jdbc/hive-jdbc-2.1.0-standalone.jar:/opt/hadoop/share/hadoop/common/hadoop-common-2.7.2.jar'
+HADOOP_STREAMING=/opt/hadoop/share/hadoop/tools/lib/hadoop-streaming-2.7.1.jar
+CLASSPATH='/opt/hive/jdbc/hive-jdbc-2.1.0-standalone.jar:/opt/hadoop/share/hadoop/common/hadoop-common-2.7.1.jar'
 
