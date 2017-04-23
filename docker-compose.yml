@@ -21,6 +21,7 @@ services:
       - ./data/hadoop:/opt/hadoop
     ports:
       - "9000:9000"
+      - "50070:50070"
   rstudio:
     build: ./rstudio
     image: jh-rstudio
