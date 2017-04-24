@@ -1,0 +1,18 @@
+lema, rb 2%
+rb 2%
+rb 3%
+rb 4%
+rb 3%
+rb 2%,mineuse
+rb
+rb
+rb 12
+rb
+rj 30%
+rb
+rb
+rb 25%
+rb
+rb
+rb
+rj 10, rb 4

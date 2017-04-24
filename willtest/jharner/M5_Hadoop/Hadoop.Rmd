@@ -1,0 +1,761 @@
+---
+title: 'Module 5: Hadoop'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Run install.packages only the first time---then comment out.
+# install.packages(c("datadr", "housingData"))
+```
+
+## Overview
+
+The components of the Hadoop ecosystem are generally accessed through Java APIs. However, most data scientists program in either R or Python. This module presents RHadoop and RHIPE---two R interfaces to Hadoop. RHadoop takes a more traditional, but high performance, approach to writing MapReduce jobs and to accessing various storage sources using R. RHIPE takes a more statistical and graphical approach which has the potential to extend the range of Hadoop through a wide array of R functions.
+
+## Objectives
+
+By the end or this module, students will be able to:  
+
+1. Move data to and from HDFS using R.
+2. Program MapReduce jobs using R.  
+3. Build workflows from data extraction to data loading and analyses using RHadoop.  
+4. Build workflows from data extraction to data loading and analyses using RHIPE. 
+5. Post process Hadoop output using analytical or graphical techniques in R.  
+6. Use divide and recombine to apply wide-ranging statistical methods to big data.  
+
+## 5.1 MapReduce
+
+#### [Video on MapReduce](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m5/MapReduce.mp4)
+
+MapReduce is a simple but powerful programming model for breaking a task into pieces and operating on those pieces in an embarrassingly parallel manner across a cluster.
+
+MapReduce operates on key-value pairs. The input, output, and intermediate data are all key-value pairs. A MapReduce job consists of three phases that operate on these key-value pairs: the map, the shuffle/sort, and the reduce.
+
+* *Map*: A map function is applied to each input key-value pair, which does some user-defined processing and emits new key-value pairs to intermediate storage to be processed by the reduce function (after shuffling).  
+* *Shuffle/Sort*: The map output values are collected for each unique map output key and passed to a reduce function.  
+* *Reduce*: A reduce function is applied in parallel to all values corresponding to each unique map output key and emits output key-value pairs.  
+
+MapReduce cluster computing uses a linear dataflow on distributed programs. In its canonical form, it reads input data from HDFS, maps a function across the data, reduces the results of the map, and stores the reduction results in HDFS. 
+See the schematic [here](http://deltarho.org/docs-datadr/#mapreduce) (scroll up to see the figure).
+
+The `map` function and `reduce` function are user-defined. The MapReduce engine takes care of everything else. We will get a better feel for how things work by looking at some examples in this section.
+
+`map()` and `reduce()` functions are stables of functional programming languages, but take on new importance within Hadoop.
+
+## 5.2 RHadoop
+
+#### [Video on RHadoop](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m5/RHadoop.mp4)
+
+RHadoop is a collection of R packages developed by Revolution Analytics that allow users to manage and analyze data with Hadoop. 
+
+MapReduce is a powerful programming framework for efficiently processing very large amounts of data stored in the Hadoop distributed filesystem (HDFS). RHadoop is tuned to the needs of data analysts who typically work in the R environment as opposed to general-purpose languages like Java.
+
+RHadoop provides an R package called rmr2, whose goals are:
+
+* To provide map-reduce programmers an easy, productive, and elegant way to write MapReduce jobs. Programs written using the `rmr2` package may need one-two orders of magnitude less code than Java, while being written in a readable, reusable and extensible language.  
+
+* To give R programmers a way to access the map-reduce programming paradigm and to work on big data sets in a natural way for data analysts working in R.  
+
+Together with its companion packages `rhdfs` and `rhbase` (for working with HDFS and HBase datastores, respectively, in R) the `rmr2` package provides a way for data analysts to access massive, fault-tolerant parallelism without needing to master distributed programming. By providing an abstraction layer on top of all of the Hadoop implementation details, the `rmr2` package lets the R programmer focus on the data analysis of very large data sets.
+
+Initially, we must put data into HDFS (or HBase) for analysis. This can be done in R (rather than the UNIX command line with `hadoop` or `hbase`) using the RHadoop package `rhdfs`. Once the library is loaded, it must be initiated.
+
+```{r}
+options(warn=-1)
+
+library(rhdfs)
+library(rmr2)
+
+hdfs.init()
+```
+
+You must have an account on our installed HDFS. The directories and files in my home directory are listed by the `hdfs.ls` function.
+```{r}
+hdfs.ls(path="/user/eharner")
+```
+For a full list of hdfs functions see the help pages for the `rhdfs` package.
+
+#### My first mapreduce job
+
+`mapreduce` is not very different than a combination of `lapply` and `tapply`: transform elements of a list, compute an index (key in mapreduce jargon) and process the resulting groups.
+
+```{r}
+# Using sapply:
+small.ints = 1:100
+sapply(small.ints, function(x) x^2)
+```
+
+```{r}
+# Using mapreduce: note that rmr2 has its own interface with hdfs
+small.ints = to.dfs(1:100)
+
+out.data <- mapreduce(
+  input = small.ints,
+  map = function(k, v) cbind(v, v^2))
+
+out.data <- from.dfs(out.data)
+str(out.data)
+head(out.data$val)
+```
+The first line puts the data into HDFS, where the bulk of the data has to reside for `mapreduce` to operate on. Don't use `to.dfs` to write out big data since it is not scalable. `to.dfs` is nonetheless very useful for a variety of uses like writing test cases, learning and debugging. `to.dfs` can put the data in a file of your own choosing, but if you don't specify one it will create temp files and clean them up when done. The return value is something we call a `big.data.object`. You can assign it to variables, pass it to other `rmr` functions, `mapreduce` jobs, or read it back in. It is a stub, i.e., the data is not in memory, only some information that helps finding and managing the data.
+
+The second line, i.e., `mapreduce`, replaces `lapply`. We prefer named arguments with mapreduce because there's quite a few possible arguments, but it's not mandatory. The input is the variable `small.ints` which contains the output of `to.dfs`. This is a stub for our small number data set in its HDFS version, but it could be a file path or a list containing a mix of both. The function to apply, which is called a `map` function as opposed to the `reduce` function, which we are not using here, is a regular R function with a few constraints:
+
+1. It's a function of two arguments, a collection of keys and one of values.  
+
+2. It returns key-value pairs using the function `keyval`, which can have vectors, lists, matrices or data.frames as arguments; you can also return `NULL`. You can avoid calling `keyval` explicitly but the return value `x` will be converted with a call to `keyval(NULL,x)`. This is not allowed in the `map` function when the `reduce` function is specified and under no circumstance in the `combine` function, since specifying the key is necessary for the shuffle phase.
+
+ The return value is `big.data.object`, and you can pass it as input to other jobs or read it into memory with `from.dfs`. `from.dfs` is complementary to `to.dfs` and returns a key-value pair collection. `from.dfs` is useful in defining map reduce algorithms whenever a mapreduce job produces something of reasonable size, like a summary, that can fit in memory and needs to be inspected to decide on the next steps, or to visualize it. It is much more important than `to.dfs` in production work.
+ 
+#### My second mapreduce job
+
+#### [Video on more complex examples](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m5/ComplexExamples.mp4)
+
+We've just created a simple job that was logically equivalent to a `lapply` but can run on big data. That job had only a map. This example has both a map and a reduce phase. The closest equivalent in R is arguably a `tapply`. 
+
+```{r}
+groups = rbinom(32, n = 200, prob = 0.4)
+groups
+tapply(groups, groups, length)
+```
+This creates a sample from the binomial and counts how many times each outcome occurred. 
+
+```{r}
+groups = to.dfs(groups)
+
+out.data <- from.dfs(
+  mapreduce(
+    input = groups, 
+    map = function(., v) keyval(v, 1), 
+    reduce = function(k, vv)  keyval(k, length(vv))))
+out.data
+
+plot(out.data$key, out.data$val/200, type = "h", lwd=3,
+     xlab = "y", ylab = "p(y)")
+```
+First we move the data into HDFS with `to.dfs`. Normally big data enters HDFS  with scalable data collection systems such as Flume or Sqoop. In that case we would just specify the HDFS path to the data as input to `mapreduce`. In this case the input is the variable `groups`, which contains a `big.data.object`, which keeps track of where the data is and does the clean up when the data is no longer needed.
+
+The `map` function is set to the default, which is like an identity but consistent with the `map` requirements, i.e., `function(., v) keyval(k, 1)`.
+
+The `reduce` function takes two arguments, one is a key and the other is a collection of all the values associated with that key. It could be one of vector, list, data frame or matrix depending on what was returned by the `map` function. The idea is that if the user returned values of one class, we should preserve that through the shuffle phase.
+
+As in the `map` case, the `reduce` function can return `NULL`, a key-value pair generated by the function `keyval` or any other object `x` which is equivalent to `keyval(NULL, x)`. The default is no `reduce`, that is the output of the `map` is the output of `mapreduce`. In this case the keys are realizations of the binomial and the values are all 1. Since we want to know how many there are, we count using `length`. Looking back at this second example, there are small differences with `tapply` but the overall complexity is similar.
+
+#### Word Count
+
+We define a function, `wordcount`, that encapsulates this job. Our main goal was not simply to make it easy to run a mapreduce job but to make mapreduce jobs first class citizens of the R environment and to make it easy to create abstractions based on them. For instance, we wanted to be able to assign the result of a mapreduce job to a variable and to create complex expressions including mapreduce jobs. We take the first step here by creating a function that is itself a job, which can be chained with other jobs, executed in a loop etc.
+
+```{r}
+wordcount = 
+  function(input, output = NULL, pattern = " "){
+    wc.map = 
+      function(., lines) {
+        keyval(unlist(strsplit(x = lines, split = pattern)), 1)
+        }
+    wc.reduce =
+      function(word, counts ) {
+        keyval(word, sum(counts))
+        }
+    mapreduce(input = input, output = output, 
+              map = wc.map, reduce = wc.reduce, combine = TRUE)
+  }
+```
+
+Capture the R license as text.
+```{r}
+text = capture.output(license())
+text
+```
+Technically, we should clean up the text file since "3" and "3,", etc. will be counted as separate words, but this can also be done after getting the output from Hadoop.
+
+```{r}
+out = list()
+rmr.options(backend = "hadoop")
+
+word.df <- to.dfs(keyval(NULL, text))
+word.out <- wordcount(word.df, pattern = " ")
+out[["hadoop"]] <- from.dfs(word.out)
+out[["hadoop"]]
+```
+The `map` function, as we know already, takes two arguments, a key and a value. The key here is not important, indeed always `NULL`. The value contains several lines of text, which gets split according to a pattern. Here you can see that pattern is accessible in the mapper without work on the programmer side and according to normal R scope rules.
+
+This apparent simplicity hides the fact that the `map` function is executed in a different interpreter and on a different machine than the `mapreduce` function. Behind the scenes the R environment is serialized, broadcast to the cluster and restored on each interpreter running on the nodes. For each word, a key value pair `(w, 1)` is generated with `keyval` and their collection is the return value of the mapper.
+
+The `reduce` function takes a key and a collection of values, in this case a numeric vector, as input and simply sums up all the counts and returns the pair word and count using the same helper function, `keyval`. Finally, specifying the use of a combiner is necessary to guarantee the scalability of this algorithm.
+
+The implementation defines `map` and `reduce` functions and then makes a single call to `mapreduce`. The `map` and `reduce` functions could be anonymous functions as they are used only once, but there is one advantage in naming them. `rmr` offers alternate backends, in particular one can switch off Hadoop altogether with `rmr.options(backend = "local")`. 
+
+The `input` can be an HDFS path, the return value of `to.dfs` or another job or a list---potentially, a mix of all three cases, as in `list("a/long/path", to.dfs(...), mapreduce(...), ...)`. The `output` can be an HDFS path but if it is `NULL` a temporary file will be generated and wrapped in a big data object, like the ones generated by `to.dfs`. In either event, the job will return the information about the output, either the path or the big data object.
+
+Therefore, we simply pass along the input and output of the `wordcount` function to the `mapreduce` call and return whatever its return value. That way the new function also behaves like a proper mapreduce job. The `input.format` argument allows us to specify the format of the input. The default is based on R's own serialization functions and supports all R data types. In this case we just want to read a text file, so the "text" format will create key value pairs with a `NULL` key and a line of text as value. You can easily specify your own input and output formats and even accept and produce binary formats with the functions `make.input.format` and `make.output.format`.
+
+This discussion should make it clear that RHadoop is very flexible in the data structures is can take as input, pass from map to reduce, and return as output. In this sense, RHadoop greatly generalizes Hadoop Streaming.
+
+```{r}
+options(warn=0)
+```
+
+## 5.3 DeltaRho
+
+#### [Video on DeltaRho](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m5/D&R.mp4)
+
+[DeltaRho](http://deltarho.org) is an open source project that provides methods and tools for deep analysis of large complex data.
+
+The goal or DeltaRho is to allow the thousands of analytic, visualization, and machine learning methods available in R, along with any R data structure, to be used with large complex data. Behind this effort is a statistical approach called Divide and Recombine (D&R).
+
+The key point is that we divide the data, apply a standard statistical methods, and then recombine---perhaps by averaging. This approach easily extends to big data since D&R is easily done by MapReduce.
+
+It is important to be able to visualize the data in detail, particularly for big data. Trelliscope is a natural visual extension of the D&R approach that easily and flexibly specify scalable detailed visualizations.
+
+#### Example
+
+```{r}
+library(housingData)
+library(datadr)
+
+# look at housing data
+head(housing)
+
+# divide by county and state
+byCounty <- divide(housing, by = c("county", "state"), update = TRUE)
+
+# look at summaries
+summary(byCounty)
+```
+The result of applying `divide` to the `housing` data is a distributed data object (`byCounty`). The data is divided by `county` and `state`.
+
+We now fit a regression of median list price vs. time for each county.
+```{r}
+# coef extracts the slope of the fitted line of the regression
+lmCoef <- function(x) coef(lm(medListPriceSqft ~ time, data = x))[2]
+
+# apply lmCoef to each subset
+byCountySlope <- addTransform(byCounty, lmCoef)
+
+# look at a subset of transformed data
+byCountySlope[[1]]
+```
+`addTransform` applies a transformation (in the case extracts the regression coefficient) to each subset of the distributed data object. The first county is Abbeville, SC.
+
+We now `recombine` the slopes into a single data frame using the `combine` argument. 
+```{r}
+# recombine all slopes into a single data frame
+countySlopes <- recombine(byCountySlope, combine=combRbind)
+str(countySlopes)
+
+plot(sort(countySlopes$val))
+```
+Most slopes are tightly concentrated around 0, but some counties deviate substantially from 0.
+
+Treliscope will not install on `gofirst`, but you can see the [visualizations here](http://hafen.github.io/trelliscopejs-demo/). Click on the black blocks of text with red lettering to see the individual county scatterplots.
+
+The following subsections are taken from the [datadr tutorial](http://deltarho.org/docs-datadr/#introduction). More detail and nice figures are given in the tutorial.
+
+### 5.3.1 MapReduce with `datadr`
+
+#### [Video on MapReduce with `datadr`](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m5/D&RMapReduce.mp4)
+
+MapReduce forms the basis of all `datadr` operations. While the goal of datadr is for the higher-level `divide()` and `recombine()` methods to take care of all analysis needs, there may be times that the user would like to write MapReduce code directly. `datadr` exposes the general MapReduce interface that runs over any implemented backend.
+
+MapReduce jobs are executed in `datadr` with a call to `mrExec()`. The main inputs a user should be concerned about are:  
+
+* `data`: a ddo/ddf  
+* `map`: an R expression that is evaluated during the map stage  
+* `reduce`: a vector of R expressions with names `pre`, `reduce`, and `post` that is evaluated during the reduce stage  
+
+where `ddo` is a distributed data object and `ddf` is a distributed data frame.
+
+The `map` expression is an R expression that operates on a chunk of input key-value pairs. Map expressions operate in parallel on disjoint chunks of the input data. A `datadr` map expression has the following essential objects or functions available:  
+
+* `map.keys`: a list of the current block of input keys  
+* `map.values`: a list of the current block of input values  
+* `collect()`: a function that emits key-value pairs to the shuffle/sort process 
+
+The `reduce` expression is processed for each set of unique keys emitted from the running the map expression over the data. It consists of `pre`, `reduce` and `post` expressions.
+
+A `datadr` reduce expression has the following essential objects or functions available:  
+
+* `reduce.key`: a unique map output key  
+* `reduce.values`: a collection of all of the output values that correspond to `reduce.key`    
+* `collect()`: a function that emits key-value pairs to the output dataset  
+
+We will illustrate MapReduce by continuing to look at the `iris` data. We’ll split it randomly into 4 key-value pairs:
+```{r}
+# split iris data randomly into 4 key-value pairs
+set.seed(1234)
+irisRR <- divide(iris, by = rrDiv(nrows = 40))
+```
+All inputs and outputs to MapReduce jobs in `datadr` are `ddo` or `ddf` objects.
+
+Suppose we would like to compute the mean petal length by species. Computing a mean with independent operations for each subset can be done quite simply by keeping track of the sum and the length of the variable of interest in each subset, adding these up, and then dividing the final sum by the final length.
+
+First we define the `map` expression.
+```{r}
+# map expression to emit sum and length of Petal.Length by species
+meanMap <- expression({
+  v <- do.call(rbind, map.values)
+  tmp <- by(v, v$Species, function(x) {
+    collect(
+      as.character(x$Species[1]),
+      cbind(tot = sum(x$Petal.Length), n = nrow(x)))
+  })
+})
+```
+We want to compute the mean individually for each species. We can take care of that in our map expression by breaking the data up by species, and then computing the sum and length for each and emitting them to the reduce using `collect()`.
+
+We then define the `reduce` expression.
+```{r}
+# reduce to compute mean Petal.Length
+meanReduce <- expression(
+  pre = {
+    total <- 0
+    nn <- 0
+  },
+  reduce = {
+    tmp <- do.call(rbind, reduce.values)
+    total <- total + sum(tmp[, "tot"])
+    nn <- nn + sum(tmp[, "n"])
+  },
+  post = {
+    collect(reduce.key, total / nn)
+  }
+)
+```
+For the reduce for each unique map output key, we initialize a value `total = 0` and a length `nn = 0`. Then, the reduce part of the expression is run on all incoming `reduce.values` and `total` and `nn` are updated with the new data. When we have cycled through all `reduce.values`, we compute the mean as `total / nn` and emit the result:
+
+The job is executed with:
+```{r}
+# execute the job
+meanRes <- mrExec(irisRR,
+  map = meanMap,
+  reduce = meanReduce
+)
+
+# look at the result for virginica and versicolor
+meanRes[c("virginica", "versicolor")]
+```
+
+
+### 5.3.2 Store/Compute Backends
+
+#### Video on store/compute backends
+
+So far have used very small datasets. What if we have more data than fits in memory? In this section we cover additional backends to `datadr` that allow us to scale the D&R approach to very large datasets.
+
+`datadr` has been designed to be extensible, providing the same interface to multiple backends. Thus all of the examples we have illustrated so far can be run with the code unchanged on data registered to a different backend.
+
+The general requirements for a backend to the `datadr` interface are:  
+
+* key-value storage  
+* MapReduce computation  
+
+Additionally, a backend must have bindings that allow us to access data and interface with MapReduce from inside of R.
+
+All of the examples we have seen so far have been for "small" data, using in-memory R lists as the key-value store and a simple R implementation of MapReduce to provide computations.
+
+Two other options have been implemented for "medium" and "large" data. See the tutorials on [backends](http://deltarho.org/docs-datadr/#storecompute-backends).
+
+We spend much of our time in `RHIPE` with very large datasets. This is the only implemented backend that requires substantial effort to get up and run, which entails installing and configuring `Hadoop` and `RHIPE` on a cluster. We have not yet installed `RHIPE` on `gofirst`.
+
+The "medium" option stores data on local disk and processes it using multicore R. This is a great intermediate backend and is particularly useful for processing results of Hadoop data that are still too large to fit into memory. In addition to operating on small data, the "small" option of in-memory data works well as a backend for reading in a small subset of a larger data set and testing methods before applying across the entire data set.
+
+The "medium" and "large" out-of-memory key-value storage options require a connection to be established with the backend. Other than that, the only aspect of the interface that changes from one backend to another is a `control` method, from which the user can specify backend-specific settings and parameters. We will provide examples of how to use these different backends in this section.
+
+For each backend, we will in general follow the process of the following:  
+
+* Initiating a connection to the backend  
+* Adding data to the connection  
+* Initiating a ddo/ddf on the connection  
+* A D&R example  
+* A MapReduce example  
+
+### Small: Memory/CPU
+
+#### Video on Memore/CPU backends
+
+The examples we have seen so far have all been based on in-memory key-value pairs. Thus there will be nothing new in this section. However, we will go through the process anyway to draw comparisons to the other backends and show how the interface stays the same.
+
+We will stick with a very simple example using the `iris` data.
+
+When initiating an in-memory ddf with an in-memory backend, there is no backend storage to "connect" to or add data to. We can jump straight to initializing a ddo/ddf from data we already have in our environment.
+
+For example, suppose we have the following collection of key-value pairs:
+```{r}
+library(datadr)
+irisKV <- list(
+   list("key1", iris[1:40,]),
+   list("key2", iris[41:110,]),
+   list("key3", iris[111:150,]))
+```
+
+We can initialize this as a ddf with the following:
+```{r}
+# initialize a ddf from irisKV
+irisDdf <- ddf(irisKV)
+```
+
+#### D&R example
+
+For a quick example, let's create a "by species" division of the data, and then do a recombination to compute the coefficients of a linear model of sepal length vs. sepal width:
+```{r}
+# divide in-memory data by species
+bySpecies <- divide(irisDdf, by = "Species")
+
+# transform bySpecies to a data frame of lm coefficients
+bySpeciesLm <-
+  addTransform(bySpecies, function(x) {
+    coefs <- coef(lm(Sepal.Length ~ Petal.Length, data = x))
+    data.frame(slope = coefs[2], intercept = coefs[1])
+    })
+
+# compute lm coefficients for each division and rbind them
+recombine(bySpeciesLm, combRbind)
+```
+
+#### MapReduce example
+
+For a MapReduce example, let's take the `bySpecies` data and find the 5 records with the highest sepal width:
+```{r}
+# map returns top 5 rows according to sepal width
+top5map <- expression({
+  v <- do.call(rbind, map.values)
+  collect("top5", v[order(v$Sepal.Width, decreasing = TRUE)[1:5],])
+  })
+
+# reduce collects map results and then iteratively rbinds them and returns top 5
+top5reduce <- expression(
+   pre = {
+      top5 <- NULL
+   }, reduce = {
+      top5 <- rbind(top5, do.call(rbind, reduce.values))
+      top5 <- top5[order(top5$Sepal.Width, decreasing = TRUE)[1:5],]
+   }, post = {
+      collect(reduce.key, top5)
+   }
+)
+
+# execute the job
+top5 <- mrExec(bySpecies, map = top5map, reduce = top5reduce)
+
+# get the result
+top5[[1]]
+```
+
+### Medium: Disk / Multicore
+
+#### Video on disk/ multicore backends
+
+The "medium" key-value backend stores data on your machine's local disk, and is good for datasets that are bigger than will fit in (or are manageable in) your workstation's memory, but not so big that processing them with the available cores on your workstation becomes unfeasible. Typically this is good for data in the hundreds of megabytes. It can be useful sometimes to store even very small datasets on local disk.
+
+#### Initiating a disk connection
+
+To initiate a local disk connection, we use the function `localDiskConn()`, and simply point it to a directory on our local file system.
+```{r}
+# initiate a disk connection to a new directory /__tempdir__/irisKV
+irisDiskConn <- localDiskConn(file.path(tempdir(), "irisKV"), autoYes = TRUE)
+```
+
+Note that in this tutorial we are using a temporary directory as the root directory of our local disk objects through calling `tempdir()`. You wouldn't do this in a real analysis but this makes the example run well in a non-intrusive platform-independent way.
+
+By default, if the directory does not exist, `localDiskConn()` will ask you if you would like to create the directory. Since we specify `autoYes = TRUE`, the directory is automatically created.
+```{r}
+# print the connection object
+irisDiskConn
+```
+
+`irisDiskConn` is simply a `kvConnection` object that points to the directory. Meta data containing data attributes is also stored in this directory. If we lose the connection object `irisDiskConn`, the data still stays on the disk, and we can get our connection back by calling
+```{r}
+irisDiskConn <- localDiskConn(file.path(tempdir(), "irisKV"))
+```
+
+Any meta data that was there is also read in. If you would like to connect to a directory but reset all meta data, you can call `localDiskConn()` with `reset = TRUE`.
+
+Data is stored in a local disk connection by creating a new `.Rdata` file for each key-value pair. For data with a very large number of key-value pairs, we can end up with too many files in a directory for the file system to handle efficiently. It is possible to specify a parameter `nBins` to `localDiskConn()`, which tells the connection that new data should be equally placed into `nbins subdirectories`. The default is `nBins = 0`.
+
+#### Adding data
+
+We have initiated a "localDiskConn" connection, but it is just an empty directory. We need to add data to it. With the same key-value pairs as before:
+```{r}
+irisKV <- list(
+   list("key1", iris[1:40,]),
+   list("key2", iris[41:110,]),
+   list("key3", iris[111:150,]))
+```
+
+We can add key-value pairs to the connection with `addData()`, which takes the connection object as its first argument and a list of key-value pairs as the second argument. For example:
+```{r}
+addData(irisDiskConn, irisKV[1:2])
+```
+
+Here we added the first 2 key-value pairs to disk. We can verify this by looking in the directory:
+```{r}
+list.files(irisDiskConn$loc)
+```
+
+"_meta" is a directory where the connection metadata is stored. The two `.Rdata` files are the two key-value pairs we just added. The file name is determined by the md5 hash of the data in the key (and we don't have to worry about this).
+
+We can call `addData()` as many times as we would like to continue to add data to the directory. Let's add the final key-value pair:
+```{r}
+addData(irisDiskConn, irisKV[3])
+```
+
+Now we have a connection with all of the data in it.
+
+#### Initializing a ddf
+
+We can initialize a ddo/ddf with our disk connection object:
+```{r}
+# initialize a ddf from irisDiskConn
+irisDdf <- ddf(irisDiskConn)
+```
+
+As noted before, with in-memory data, we initialize ddo/ddf objects with in-memory key-value pairs. For all other backends, we pass a connection object. `irisDdf` is now a distributed data frame that behaves in the same way as the one we created for the in-memory case. The data itself though is located on disk.
+
+The connection object is saved as an attribute of the ddo/ddf.
+```{r}
+# print irisDdf
+irisDdf
+```
+
+We see that the connection info for the object is added to the printout of irisDdf. Also, note that nearly all of the attributes have not been populated, including the keys. This is because the data is on disk and we need to pass over it to compute most of the attributes:
+```{r}
+# update irisDdf attributes
+irisDdf <- updateAttributes(irisDdf)
+```
+
+#### D&R Example
+
+Let's see how the code looks for the D&R example on the local disk data:
+```{r}
+# divide local disk data by species
+bySpecies <- divide(irisDdf, 
+   by = "Species",
+   output = localDiskConn(file.path(tempdir(), "bySpecies"), autoYes = TRUE),
+   update = TRUE)
+```
+
+This code is the same as what we used for the in-memory data except that in `divide()`, we also need to specify an output connection. If `output` is not provided, an attempt is made to read the data in to an in-memory connection. Here we specify that we would like the output of the division to be stored on local disk in `bySpecies` in our R temporary directory.
+
+As stated before, note that local disk objects persists on disk. I know where the data and metadata for the `bySpecies` object is located. If I lose my R session or remove my object, I can get it back. All attributes are stored as meta data at the connection, so that I don't need to worry about recomputing anything:
+```{r}
+# remove the R object "bySpecies"
+rm(bySpecies)
+# now reinitialize
+bySpecies <- ddf(localDiskConn(file.path(tempdir(), "bySpecies")))
+```
+
+The code for the recombination remains exactly the same:
+```{r}
+# transform bySpecies to a data frame of lm coefficients
+bySpeciesLm <- addTransform(bySpecies, function(x) {
+   coefs <- coef(lm(Sepal.Length ~ Petal.Length, data = x))
+   data.frame(slope = coefs[2], intercept = coefs[1])
+})
+# compute lm coefficients for each division and rbind them
+recombine(bySpeciesLm, combRbind)
+```
+
+#### Interacting with local disk ddo/ddf objects
+
+Note that all interactions with local disk ddo/ddf objects are the same as those we have seen so far.
+
+Access data by index or by key:
+```{r}
+bySpecies[[1]]
+bySpecies[["Species=setosa"]]
+```
+
+These extractors find the appropriate key-value pair files on disk, read them in, and return them.
+
+Also, all the accessors like getKeys() work just the same:
+```{r}
+getKeys(bySpecies)
+```
+
+#### MapReduce example
+
+Here we again find the top 5 iris records according to sepal width.
+```{r}
+# map returns top 5 rows according to sepal width
+top5map <- expression({
+   counter("map", "mapTasks", 1)
+   v <- do.call(rbind, map.values)
+   collect("top5", v[order(v$Sepal.Width, decreasing = TRUE)[1:5],])
+})
+
+# reduce collects map results and then iteratively rbinds them and returns top 5
+top5reduce <- expression(
+   pre = {
+      top5 <- NULL
+   }, reduce = {
+      top5 <- rbind(top5, do.call(rbind, reduce.values))
+      top5 <- top5[order(top5$Sepal.Width, decreasing = TRUE)[1:5],]
+   }, post = {
+      collect(reduce.key, top5)
+   }
+)
+
+# execute the job
+top5 <- mrExec(bySpecies, map = top5map, reduce = top5reduce)
+# get the result
+top5[[1]]
+```
+
+The call to `counter()` in the map expression illustrates some of the control parameters described at the end of this section.
+
+#### control options
+
+There are various aspects of backends that we want to be able to have control over. The `control` argument of a MapReduce job provides a general interface to do this. A `control` argument is simply a named list of settings for various control parameters.
+
+All of the data operations run MapReduce jobs and therefore have a `control` argument.
+
+Currently, the available control parameters for MapReduce on a local disk connection are:  
+
+* cluster: a cluster object from `makeCluster()` to use to do distributed computation -- default is NULL (single core)   
+* `mapred_temp_dir`: where to put intermediate key-value pairs in between map and reduce -- default is `tempdir()`    
+* `map_buff_size_bytes`: the size of batches of key-value pairs to be passed to the map -- default is 10485760 (10 Mb). The cores in the cluster are filled with key-value pairs to process, up to each collection exceeding this size.    
+* `map_temp_buff_size_bytes`: the size of the batches of key-value pairs to flush to intermediate storage from the map output -- default is 10485760 (10 Mb)  
+* `reduce_buff_size_bytes`: the size of the batches of key-value pairs to send to the reduce -- default is 10485760 (10 Mb)  
+
+The function `localDiskControl()` is used to create the default list. Any parameter specified will override the default.
+
+To illustrate the use of control for local disk connections, let's rerun the "top 5" MapReduce job but this time with a 3-core cluster:
+```{r}
+# create a 3 core cluster
+library(parallel)
+cl <- makeCluster(3)
+
+# run MapReduce job with custom control
+top5a <- mrExec(bySpecies, 
+   map = top5map, reduce = top5reduce,
+   control = localDiskControl(cluster = cl))
+
+# get the result
+top5a[[1]]
+
+stopCluster(cl)
+```
+
+The map and reduce tasks for this job were run on a 3-core cluster.
+
+We can verify that our new computation did indeed run 3 separate map tasks (one on each core) by comparing the counters from the first and second jobs:
+```{r}
+# how many map tasks were there before using a 3-core cluster
+counters(top5)$map$mapTasks
+# how many map tasks were there after using a 3-core cluster
+counters(top5a)$map$mapTasks
+```
+
+### Large: HDFS/ RHIPE
+
+#### Video on HDFS/ RHIPE
+
+Very large data sets can be stored on the Hadoop Distributed File System (HDFS). For this to work, your workstation must be connected to a Hadoop cluster with RHIPE installed. As mentioned, we do not have RHIPE installed. Thus, we list the code without output to give you a sense of the process. However, once the data is in HDFS, the code for MapReduce is essentially unchanged from above. 
+
+#### HDFS operations with RHIPE
+
+Getting ready for dealing with data in Hadoop can require some Hadoop file system operations. Here is a quick crash course on the available functions for interacting with HDFS from R using RHIPE.
+
+First we need to load and initialize RHIPE:
+```
+library(Rhipe)
+rhinit()
+```
+
+Now for some of the available commands:
+```
+# list files in the base directory of HDFS
+rhls("/")
+
+# make a directory /tmp/testfile
+rhmkdir("/tmp/testfile")
+
+# write a couple of key-value pairs to /tmp/testfile/1
+rhwrite(list(list(1, 1), list(2, 2)), file = "/tmp/testfile/1")
+
+# read those values back in
+a <- rhread("/tmp/testfile/1")
+
+# create an R object and save a .Rdata file containing it to HDFS
+d <- rnorm(10)
+rhsave(d, file = "/tmp/testfile/d.Rdata")
+
+# load that object back into the session
+rhload("/tmp/testfile/d.Rdata")
+
+# list the files in /tmp/testfile
+rhls("/tmp/testfile")
+
+# set the HDFS working directory (like R's setwd())
+hdfs.setwd("/tmp/testfile")
+
+# now commands like rhls() go on paths relative to the HDFS working directory
+rhls()
+
+# change permissions of /tmp/testfile/1
+rhchmod("1", 777)
+# see how permissions chagned
+rhls()
+
+# delete everything we just did
+hdfs.setwd("/tmp")
+rhdel("/tmp/testfile")
+rhls()
+```
+
+Also see `rhcp()` and `rhmv()`.
+
+### Initiating an HDFS connection
+
+To initiate a connection to data on HDFS, we use the function `hdfsConn()`, and simply point it to a directory on HDFS.
+```
+# initiate an HDFS connection to a new HDFS directory /tmp/irisKV
+irisHDFSconn <- hdfsConn("/tmp/irisKV", autoYes = TRUE)
+```
+
+Similar to local disk connections, by default, if the HDFS directory does not exist, `hdfsConn()` will ask you if you would like to create the directory. Since we specify `autoYes = TRUE`, the directory is automatically created. Also, as with local disk connections, `irisHDFSconn` is simply a "kvConnection" object that points to the HDFS directory which contains or will contain data, and where meta data is stored for the connection.
+```
+# print the connection object
+irisHDFSconn
+```
+
+This simply prints the location of the HDFS directory we are connected to and the type of data it will expect. "sequence" is the default, which is a Hadoop sequence file. Other options are "map" and "text". These can be specified using the type argument to` hdfsConn()`. See `?hdfsConn` for more details.
+
+## Learning Activities
+
+Assignment 4 will be sent as a separate file. This is an team assignment.
+
+## Assessments
+
+Quiz 5 will be posted on eCampus.
+
+## Discussion Questions
+
+1. RHadoop: How does RHadoop provide a comprehensive and flexible (in the sense of possible key-value pairs) interface between R and the Hadoop ecosystem (including storage formats).
+
+Ref: [RHadoop](https://github.com/RevolutionAnalytics/RHadoop/wiki)
+
+2. DeltaRho: What is the underlying premise of DeltaRho and how does it differ from RHadoop?
+
+Ref: [DeltaRho](http://deltarho.org)
+
+3. Divide & Recombine: Why does divide and recombine provide a uniquely statistical approach to programming MapReduce using Hadoop and other backends?
+
+Ref: [Divide and Recombine](http://ml.stat.purdue.edu/docs/dr.rhipe.stat.2012.pdf)
+
+## Reading Assignments
+
+The books below are available in O'Reilly Books Online:
+
+* R in a Nutshell*, Joseph Adler, O'Reilly, 2nd Edition, Chapter Chapter 26.
+
+* Parallel R*, Q. Ethan McCallum and Stephen Weston, O'Reilly, Chapters 7, 9.
+
+The following links are relevant for data mining:
+
+[R and Data Mining](http://www.rdatamining.com/home)
+
+[Building an R Hadoop System](http://www.rdatamining.com/big-data/rhadoop)
+

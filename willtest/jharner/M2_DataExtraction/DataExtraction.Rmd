@@ -1,0 +1,1783 @@
+---
+title: "Module 2: Data Extraction"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+if(system("hostname", intern=TRUE) == "gben3001.hpc.wvu.edu"){
+  host.name=""
+  } else {
+    host.name="postgres"
+    }
+```
+
+## Overview
+
+Data is exploding. In 2013 the world's data was 4.4 zettabytes, i.e., $4.4 x 10^{21}$ bytes and is expected to grow to 44 zettabytes by 2020. This module explores storage options and discusses ways of accessing this data.
+
+## Objectives
+
+By the end or this module, students will be able to:
+
+1. Construct data structures by dimensionality and type;  
+2. Get and set the attributes of a data structure;  
+3. Import plain text data into R;    
+4. Import and manipulate XML data structures;  
+5. Convert between JSON and R classes;  
+6. Import binary data into R;  
+7. Extract data from SQL databases;  
+8. Contrast NoSQL databases; 
+9. Scrape data from the web;  
+10. Work with date and time data.  
+
+## 2.1 Data Structures
+
+#### [Video on Data Structures](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/DataStructures.mp4)
+
+Material in this section is based on Hadley's Wickham's [Advanced R Data Structures](http://adv-r.had.co.nz/Data-structures.html).
+
+Data structures in R are organized by:
+
+* Dimensionality  
+* Homogeneity
+
+Dimension  | Homogeneous   | Heterogeneous  
+---------- | ------------- | -------------  
+1-dim      | atomic vector | list  
+2-dim      | matrix        | data frame  
+n-dim      | array         |   
+
+These data structures are now discussed including their metadata as specified in the data's attributes.
+
+### 2.1.1 Vectors
+
+Vectors are of tho types:  
+
+* atomic vectors  
+* lists  
+
+#### Atomic vectors
+
+The common types of atomic vectors are:  
+
+* numeric (double)  
+* character  
+* integer  
+* logical  
+
+Atomic vectors are created by the R function `c()`, i.e., combine.
+```{r pyromycin}
+conc <- c(.02, .02, .06, .06, .11, .11, .22, .22, .56, .56, 1.1, 1.1)
+velocity <- c(76L, 47L, 97L, 107L, 123L, 139L, 159L, 152L, 191L, 201L, 207L, 200L)
+```
+If you execute each chunk individually (by clicking on the right error above), you will see that `conc` and `velocity` are in the Global Environment (Click the `Environment` tab.). When R searches for a symbol name, e.g., `conc`, it starts in the Global Environment.
+
+From a theoretical perspective `velocity` can be modeled by the Michaelis-Menten function:  
+$$ y = \frac{\beta_0 x}{\beta_1 + x} + \epsilon $$.  
+where $x$ is the concentration (`conc`) and $y$ is the velocity of the enzymatic reaction (`velocity`). This can be fit by a nonlinear regression using the `nls` function.
+```{r}
+puromycin.nls <- nls(velocity ~ (beta0 * conc) / (beta1 + conc),
+                     start=c(beta0=200, beta1=0.1))
+puromycin.nls
+```
+Initial values must be set. $\beta_0$ is the asymptotic value of `velocity`, about 200. $\beta_1$ is the value of `conc` at which the function reaches half its asymptotic value, about 0.1. We fitted the model using atomic vectors for $x$ and $y$, in our case `conc` and `velocity`, respectively. The `start` argument uses a named numeric vector (done here) or a named list (see below).
+
+Next, let's visually explore the fit.
+```{r}
+plot(conc, velocity, xlab="Concentation", ylab="Velocity")
+conc.seq <- seq(min(conc), max(conc), length=100)
+lines(conc.seq, predict(puromycin.nls, list(conc=conc.seq)), col = "red", lwd = 2)
+```
+
+In order to plot the curve, we use the `lines` function. We could have used `fitted` rather than `predict` to get the $y$-values, but the curves would have been segmented. Instead, we use a sequence of $x$ values from `min` to `max` concentration of length 100 to get a smooth curve. The data appear to follow the Michaelis-Menten function, but we have not yet done a formal test.
+
+#### Lists
+
+Lists differ from atomic vectors because their elements can be of any type, including lists, i.e., a lists is a recursive data structure. You construct lists by using `list()`.
+
+```{r}
+(l <- list(c(1, 2,3), c("a", "b"), c(TRUE, FALSE)))
+l[1]
+l[[1]]
+```
+Single brackets, e.g., `[1]` extract the first element of the list, i.e., a list, whereas double brackets `[[1]]` extract the actual elements of the list.
+
+The following list has an element which is a list, i.e., the data structure is recursive:
+```{r}
+(l.recursive <- list(list(c(1, 2,3), c("a", "b")), c(TRUE, FALSE)))
+is.recursive(l)
+l.recursive[1]
+l.recursive[[1]][[1]]
+```
+The first element of the list is a list with two elements given by `[[1]][[1]]` and `[[1]][[2]]`
+
+The elements of the list can be named:
+```{r}
+# A named list
+(l.named <- list(A=c(1, 2,3), B=c("a", "b"), C=c(TRUE, FALSE)))
+l.named$B
+l.named[[2]]
+```
+
+### 2.1.2 Matrices and Arrays
+
+If a `dim()` attribute is added to an atomic vector, it behaves like a multi-dimensional array. A matrix is a special case, which has two dimensions. Matrices are commonly used in computational statistics. 
+
+```{r}
+x <- c(1:12)
+dim(x) <- c(6, 2)
+x
+length(x)
+nrow(x)
+ncol(x)
+
+rownames(x) <- paste("Obs", 1:6, sep="")
+colnames(x) <- paste("Var", 1:2, sep="")
+x
+
+# A three dimension array
+dim(x) <- c(3, 2, 2)
+x
+```
+We can think of this as two $3 \times 2$ matrices forming a three-dimensional structure.
+
+We can also use the `matrix` and `array` functions to create matrices and arrays.
+```{r}
+matrix(1:12, nrow=6, ncol=2)
+array(1:12, c(3, 2, 2))
+```
+
+### 2.1.3 Data Frames
+
+A data frame is a list of equal-length vectors in which the elements of each column must be of the same type, but the columns can be of different types.
+```{r}
+df <- data.frame(Var1=1:6, Var2=7:12, Var3=rep(c("a", "b"), each=3))
+df
+str(df)
+```
+The function `str` shows the structure of an R object. Notice that `Var3` is coerced (by default) into a factor with 2 levels.
+```{r}
+attributes(df$Var3)
+levels(df$Var3)
+```
+A factor has more structure than a character vector, e.g., a `levels` attribute. A factor can be created by the `factor` function.
+
+We have created various R objects which are now in the Global Environment, which can be seen by:
+```{r}
+ls()
+```
+Let's remove the variables we no longer need:
+```{r}
+rm(conc.seq, df, l, l.named, l.recursive, puromycin.nls, x)
+```
+
+Rather than analyze the puromycin data using two vectors, we can combine `conc` and `velocity` into a data frame.
+```{r}
+puromycin.df <- data.frame(conc=conc, velocity=velocity)
+puromycin.df
+str(puromycin.df)
+```
+
+Once we have formed the data frame `puromycin.df`, we can remove `conc` and `velocity` from the Global environment using `rm`:
+```{r}
+ls()
+rm(conc, velocity)
+ls()
+```
+
+If you would try to run the `nls` model above, it would not run since R would not be able to find `conc` and `velocity`. You would need to substitute `puromycin.df$conc` and `puromycin.df$velocity` for these variables. Since this is awkward, we look at two solutions.
+
+The first way involves specifying the data frame in the `data` argument.
+```{r}
+puromycin.nls <- nls(velocity ~ (beta0 * conc) / (beta1 + conc),
+                     data=puromycin.df, start=c(beta0=200, beta1=0.1))
+puromycin.nls$data
+```
+In the first model above, `conc` and `velocity` are found by `nls` in the global environment, whereas here these variables are found in the environment created by the data frame `puromycin.df`. 
+
+The problem with this approach is that `conc` and `velocity` are only available in this single statement. R will not automatically look inside a data frame to find variable names. A better approach is to put `puromycin.df` in R's search path.
+```{r}
+search()
+ls() # or ls(pos=1), i.e., position 1 (Global Env) is the default for ls()
+attach(puromycin.df)
+search()
+ls(pos=2)
+```
+Notice that `puromycin.df` was placed in the second position in the search path. Now we can run the model without using the `$` operator or specifying the `data` argument.
+```{r}
+puromycin.nls <- nls(velocity ~ (beta0 * conc) / (beta1 + conc),     start=c(beta0=200, beta1=0.1))
+puromycin.nls$data
+puromycin.nls
+```
+R looks for `conc` and `velocity` in the Global Environment and does not find them. It then looks for them in position 2 and finds them.
+
+If you look at the Environment tab and execute R chunk by chunk, you can see how the contents of the Global Environment change. You can also click on the dropdown arrow and select `puromycin.df` to see its contents.
+
+Once we are finished accessing the variables in `puromycin.df`, it should be detached. Otherwise we will keep attaching another copy every time the code is run.
+```{r}
+detach(puromycin.df)
+```
+
+We can summarize the output and test the parameters for significance using `summary`.
+```{r}
+summary(puromycin.nls)
+```
+Notice that both regression coefficients are highly significant.
+
+The concept of environments is critical to understanding R's functional programming paradigm.
+
+## 2.2 Text Data Sources
+
+Material in this section (except for subsection 2.2.3) is based on material in Paul Murrell's [Introduction to Data Technologies](https://www.stat.auckland.ac.nz/~paul/ItDT/).
+
+### 2.2.1 Plain Text
+
+#### [Video on CSV files](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/CSV.mp4)
+
+Plain text files are the simplest way to store data. Generally, the data is stored in rows representing observations (or records) with columns representing variables. The beginning of the file may contain **metadata**, i.e., information about the data. It is sometimes called the **header**, which may represent the variable names.
+
+For example, consider the Pacific Pole of Inaccessibility data from `pointnemotemp.txt`.
+```
+             VARIABLE : Mean TS from clear sky composite (kelvin)
+             FILENAME : ISCCPMonthly_avg.nc
+             FILEPATH : /usr/local/fer_dsets/data/
+             SUBSET   : 93 points (TIME)
+             LONGITUDE: 123.8W(-123.8)
+             LATITUDE : 48.8S
+                       123.8W 
+                        23
+ 16-JAN-1994 00 /  1:  278.9
+ 16-FEB-1994 00 /  2:  280.0
+ 16-MAR-1994 00 /  3:  278.9
+ 16-APR-1994 00 /  4:  278.9
+ 16-MAY-1994 00 /  5:  277.8
+ 16-JUN-1994 00 /  6:  276.1
+```
+The first eight rows are metadata. The data of interest is in the first (date) and last (temperature) columns and is space delimited.
+
+The following are two subtypes of plain text files depending on how values are separated:  
+
+* Delimited formats:  values in a row are separated by a special character (one or more spaces, tabs, colons, etc.);   
+* Fixed-width formats:  each value in a row is allocated a fixed number of characters.  
+
+All information is stored as text.
+
+#### Computer memory
+
+The **bit** is the fundamental unit of memory that takes two values, on or off. A collection of 8 bits is a **byte**, and a collection of 4 bytes is a **word**.
+
+#### Files and formats
+
+A **file** is a block of computer memory. A file **format** is a way of interpreting the bytes in a file. In a **plain text format**, a byte represents a single character.
+
+#### Advantages and disadvantages
+
+The plain text format is simple and portable.  
+
+The disadvantages for using rows and columns is that:  
+
+* representing complex data structures is difficult and often inefficient;  
+* storing everything as characters is inefficient in terms of memory.  
+
+**Hierarchical** or **multi-level** or **stratified** data cannot easily be stored as plain text. For example, consider family data which has two types of objects: parents and children.
+
+The plain text format is not good because it is not:  
+
+* efficient due to repetition of values (violates the DRY principle);   
+* appropriate for more complex data, i.e., other than flat files. 
+
+DRY means "Don't Repeat Yourself."
+
+The **data model** is the representation of the data structure.
+
+Plain text files often lack metadata, e.g., the delimiters.
+
+#### CSV files
+
+The CSV (Comma-Separated Value) format is a special case of the plain text format. It is very reliable and common and solves the problem of where the fields are in a row.
+
+Rules for CSV files:  
+
+* Comma delimited: each field is separated by a comma;  
+* Double-quotes are special: fields containing commas enclosed by double quotes;  
+* Double-quote escape sequence: fields containing double-quotes must be surrounded by double-quotes and each embedded double-quote must be represented using two double-quotes;     
+* Header information: can have a single header line containing the names of the fields.  
+
+Often used for transferring data from spreadsheets.
+
+```{r}
+nemotemp <- read.table("pointnemotemp.txt", skip=8,
+                        colClasses=c("character", "NULL", "NULL", "NULL", "numeric"),
+                        col.names=c("date", "", "", "", "temp"))
+head(nemotemp)
+```
+The R function `read.table` reads a file in tabular format and creates a data frame. By default there is no header and the separator is blank, as above. However, we have metadata and simply skip the first 8 lines. The column classes argument, `colClasses`, is a character vector where `NULL` indicates the column is skipped. The variable names, given by `col.names`, is a character vector where `date` is `character` and `temp` is `numeric`. The resulting data frame uses `col.names` as the column names.
+
+Using one or more blanks to separate fields is dangerous if there is missing data (not the case here). We can write comma-separated data to a file using `write.csv`.
+```{r}
+write.csv(nemotemp, file="pointnemo.csv", quote=F, row.names=F)
+```
+We can then read it back in using `read.csv`, which uses `,` as a separator by default.
+```{r}
+pointnemocsv <- read.csv("pointnemo.csv", header=T)
+head(pointnemocsv)
+```
+
+#### Line endings
+
+How do lines end?
+
+OS X and Linux: ``\n``  
+Windows: ``\r\n``
+
+#### Text encodings
+
+Text formats: all data is stored as characters and each character is stored in memory as a byte.
+
+How a single character is stored in memory is called **character encoding**.  
+ASCII (American Standard Code for Information Interchange) encoding:  
+$2^8 = 256$ characters can be represented.  
+
+Other languages have special characters, e.g., Latin1 and Latin2 are not compatible. Asian and other characters use **multi-byte** encoding.  
+
+UNICODE lets computers work with all characters in all languages.  
+Every character has its own number called a **code point** often coded as `U+xxxxxx`, where `x` is a hexadecimal digit. 
+
+Two encodings to store a UNICODE code point in memory:  
+
+* UTF-16: two bytes per character;  
+* UTF-8: one or more bytes per character depending on the character.  
+For ASCII, UTF-8 uses one byte per character.  
+
+### 2.2.2 XML
+
+#### [Video on XML files](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/XML.mp4)
+
+Plain text files do not have information on the location of data.
+
+eXtensible Markup Language, XML, provides a formal way to provide labeling or “markup” for data. Data is stored in an XML document as characters.
+
+The function `xmlParse` from the R package `XML` parses the XML file. The variables can then be extracted using the `getNodeSet` function and formed into a `data.frame`.
+
+```{r}
+library(XML)
+nemoDoc <- xmlParse("pointnemotemp.xml")
+class(nemoDoc)
+nemoDoc
+nemoDocTemp <- unlist(getNodeSet(nemoDoc,
+                                 "/temperatures/case/@temperature"),
+                                 use.names=FALSE)
+nemoDocDate <- unlist(getNodeSet(nemoDoc, "/temperatures/case/@date"),
+                      use.names=FALSE)
+```
+We use `getNodeSet` to pull out `temperature` and `date` as character vectors (after unlisting). We then coerce `date` to a date format using `as.Date` and `temperature` to numeric using `as.numeric`. The resulting vectors are then formed into a data frame and named as `date` and `temp`.
+```{r}
+nemoDoc.df <- data.frame(date=as.Date(nemoDocDate, "%d-%b-%Y"),
+                         temp=as.numeric(nemoDocTemp))
+head(nemoDoc.df)
+```
+
+The XML format labels every single data value. Thus, an XML file can be manipulated automatically by a computer. When we are storing data in XML format, we are writing computer code, which allows us to communicate more about the data to the computer.
+
+#### XML Syntax
+
+What are the syntax rules?
+
+The XML format consists of two parts:  
+
+* the XML markup  
+* the data  
+
+For example consider the XML **element**:  
+```
+<latitude>48.8S</latitude>
+```
+It contains the start tag, the data, and the end tag.
+
+The `case` elements are contained within the `temperatures` element along with other elements. It differs in that there is no end tag, i.e., it is empty. However, it has two attributes: `date` and `temperature`.  
+￼<case date="16-JAN-1994" temperature="278.9"/>  
+
+The first line of an XML document must be a declaration that the file is an XML document and which version of XML is being used.  
+<?xml version="1.0"?>  
+
+The syntax of HTML (regular web pages) and XML are similar, but there are differences.    
+
+* XML is case sensitive.  
+* XML does not have a fixed number of elements.  
+
+#### Escape sequences
+
+HTML escape sequences are also used in XML. However, this may not be appropriate is all cases. Data can be considered "plain text" by embedding it with a `CDATA` section. Consider the YBC 7289 data (from the text):  
+```
+<![CDATA[  
+  | <<|||| <<<<<| <  
+]]>  
+```
+
+#### Checking XML syntax
+
+The `xmllib` software together with a command-line tool called `xmllint` can be used to check the syntax, e.g.,  `xmllint xmlcode.xml` from the UNIX shell.
+
+#### XML design
+
+We must decide how to *design* an XML document. For example, we could use `record` rather than `case` and change the attribute names.
+
+We could also use a `cases` tag and put the raw data between `<cases> ... </cases>`. Since `<case ... />` is so repetitive, this may be more efficient. That is, the data above is given in attributes, but could also be represented using elements.
+
+#### XML schema
+
+We need to write the design down so that we can check that an XML document follows the design. The computer must be able to understand the design.
+
+The design can be specified by creating a `schema` for an XML document, which is a description of the structure of the document. A number of technologies exist for specifying XML schema, but we will focus on the Document Type Definition (DTD) language. A DTD is a set of rules for an XML document. It contains:  
+
+* element declarations  `<!ELEMENT>`   
+* attribute declarations  `<!ATTLIST>`  
+
+#### Case study: Point Nemo
+
+The DTD for the `pointmenttemp.xml` file:
+```
+<!ELEMENT temperatures (variable,
+    filename,
+    filepath,
+    subset,
+    longitude,
+    latitude,
+    case*)>
+<!ELEMENT variable (#PCDATA)>
+<!ELEMENT filename (#PCDATA)>
+<!ELEMENT filepath (#PCDATA)>
+<!ELEMENT subset (#PCDATA)>
+<!ELEMENT longitude (#PCDATA)>
+<!ELEMENT latitude (#PCDATA)>
+<!ELEMENT case EMPTY>
+
+<!ATTLIST case
+    date ID #REQUIRED
+    temperature CDATA #IMPLIED>
+```
+
+The case data is `EMPTY`. The data of other elements are plain text indicated by `#PCDATA`.
+
+The `temperatures` element contain other elements, which are specified. The `*` indicates zero or more elements.
+
+ `<!ATTLIST>` declarations in a DTD are used to specify which attributes each element is allowed to have. In this example, only the case elements have attributes, so there is only one <!ATTLIST> declaration.
+ 
+The date attribute for case elements is compulsory (#REQUIRED) and the value must be unique (ID). The temperature attribute is optional (#IMPLIED) and, if it occurs, the value can be any text (CDATA).
+ 
+The Document Type Declaration can be:  
+
+* inline  
+* external  
+
+An XML document is said to be *well-formed* if it obeys the basic rules of XML syntax. If the XML document also obeys the rules given in a DTD, then the document is said to be *valid*.
+
+#### Standard Schema
+
+Many standard schemas exist, e.g., Statistical Data and Metadata eXchange (SDMX) format has been developed by several large financial institutions.
+
+#### Advantages and disadvantages
+
+Advantages of XML:  
+
+* Self describing format  
+* Representing complex data structures  
+* Data integrity
+
+Disadvantages of XML:  
+
+* Verbosity  
+* Costs of complexity
+
+### 2.2.3 JSON
+
+#### [Video on JSON-- R vector interface](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/JSONvector.mp4)
+
+The material for the section is extracted from: [the jsonlite package vignette](https://cran.r-project.org/web/packages/jsonlite/vignettes/json-mapping.pdf), by Jeroen Ooms.
+
+*JavaScript Object Notation* (JSON) is a text format for the serialization of structured data. The design of JSON is a simple and concise text-based format, particularly when compared to XML. The syntax is: 
+
+* easy for humans to read and write,  
+* easy for machines to parse and generate, and  
+* completely described in a single page [here](http://www.json.org).   
+
+The character encoding of JSON text is Unicode, using UTF-8 by default, making it naturally compatible with non-latin alphabets. Over the past years, JSON has become hugely popular on the internet as a general purpose data interchange format. High quality parsing libraries are available for almost any programming language. Several R packages are available to assist the user in generating, parsing and validating JSON through CRAN, including `rjson`, `RJSONIO`, and `jsonlite`.
+
+The emphasis of this module is to show how R data structures are most naturally represented in JSON. This is not a trivial problem, particularly for complex or relational data as they frequently appear in statistical applications. Several R packages implement `toJSON` and `fromJSON` functions which directly convert R objects into JSON and vice versa. However, the exact mapping between the various R data classes and JSON structures is not self evident. The most basic data structures in R do not perfectly map to their JSON counterparts, and leave some ambiguity for edge cases.
+
+#### Parsing and type safety
+
+The JSON format specifies 4 primitive types (`string`, `number`, `boolean`, `null`) and two universal structures:  
+
+* A JSON object: an unordered collection of zero or more name-value pairs, where a name is a string and a value is a string, number, boolean, null, object, or array.    
+* A JSON array: an ordered sequence of zero or more values.  
+
+These structures are heterogeneous; i.e. they are allowed to contain elements of different types. Therefore, the native R realization of these structures is a **named** list for JSON objects, and **unnamed** list for JSON arrays. 
+
+However, a list is an awkward and inefficient type for storing and manipulating data in R. Most statistical applications work with (homogeneous) vectors and matrices or with data frames. In order to give these data structures a JSON representation, we can define certain special cases of JSON structures which get parsed into specific R types. For example, one convention which all current implementations have in common is that a homogeneous array of primitives gets parsed into an atomic vector instead of a list.
+```{r}
+library(jsonlite)
+txt <- '[12, 3, 7]'
+x <- fromJSON(txt)
+is(x)
+x
+```
+This is reasonable, but this simplification can compromise type-safety for dynamic data.
+
+For example, suppose an R package uses `fromJSON` to pull data from a JSON API on the web and that for some particular combination of parameters the result includes a null value, e.g., `[12, null, 7]`.
+```{r}
+txt <- '[12, null, 7]'
+x <- fromJSON(txt)
+x
+```
+When relying on JSON as a data interchange format, the behavior of the parser must be consistent and unambiguous. Clients relying on JSON to get data in and out of R must know exactly what to expect in order to facilitate reliable communication, even if the content of the data is dynamic.
+
+Similarly, R code using dynamic JSON data from an external source is only reliable when the conversion from JSON to R is consistent. In the example above, we could argue that instead of falling back on a list, the array is more naturally interpreted as a numeric vector where the `null` becomes a missing value (`NA`).
+
+We now look at examples of how the common R classes are represented in JSON. The `toJSON` function relies on method dispatch, which means that objects get encoded according to their class attribute. If an object has multiple class values, R uses the first occurring class which has a `toJSON` method. If none of the classes of an object has a `toJSON` method, an error is raised. In some cases we reverse the operation using `fromJSON`.
+
+#### Atomic vectors
+
+The most basic data type in R is the atomic vector. Atomic vectors hold an ordered, homogeneous set of values of type `logical` (booleans), `character` (strings), `raw` (bytes), `numeric` (doubles), `complex` (complex numbers with a real and imaginary part), or `integer`.
+
+Because R is fully vectorized, there is no user level notion of a primitive: a scalar value is considered a vector of length 1. Atomic vectors map to JSON arrays:
+```{r}
+x <- c(1, 2, pi)
+toJSON(x)
+```
+The JSON array is the only appropriate structure to encode a vector, even though vectors in R are homogeneous, whereas the JSON array is actually heterogeneous, but JSON does not make this distinction.
+
+#### Missing values
+
+Statistical data often have missing values: a concept foreign to many other languages. Besides regular values, each vector type in R except for `raw` can hold `NA` as a value. Vectors of type `double` and `complex` define three additional types of non finite values: `NaN`, `Inf` and `-Inf`. The JSON format does not natively support any of these types; therefore, such values values need to be encoded in some other way. There are two obvious approaches:  
+
+* use the JSON null type;  
+* encode missing values as strings by wrapping them in double quotes.  
+
+Both methods result in valid JSON, but both have a limitation:  
+
+* the problem with the null type is that it is impossible to distinguish between different types of missing data, which could be a problem for numeric vectors.   
+
+> The values `Inf`, `-Inf`, `NA` and`NaN` carry different meanings, and these should not get lost in the encoding.
+
+* The problem with encoding missing values as strings is that this method can not be used for character vectors, because the user won’t be able to distinguish the actual string "NA" and the missing value `NA`.  
+
+> This would create a likely source of bugs, where clients mistakenly interpret "NA" as an actual string value, which is a common problem with text-based formats such as `CSV`.
+
+`jsonlite` uses the following defaults:  
+
+* Missing values in non-numeric vectors (`logical`, `character`) are encoded as `null`.    
+* Missing values in numeric vectors (`double`, `integer`, `complex`) are encoded as strings.  
+
+```{r}
+toJSON(c(TRUE, NA, NA, FALSE))
+toJSON(c("FOO", "BAR", NA, "NA"))
+toJSON(c(3.14, NA, NaN, 21, Inf, -Inf))
+```
+Note that we can specify a `na` argument to override the defaults.
+```{r}
+toJSON(c(3.14, NA, NaN, 21, Inf, -Inf), na="null")
+```
+
+#### Special vector types: dates, times, and factors
+
+Besides missing values, JSON also lacks native support for some of the basic vector types in R. These include vectors of class `Date`, `POSIXt` (timestamps), and `factor`. By default, the `jsonlite` package coerces these types to strings (using `as.character`):
+```{r}
+toJSON(Sys.time() + 1:3)
+toJSON(as.Date(Sys.time()) + 1:3)
+toJSON(factor(c("foo", "bar", "foo")))
+```
+When parsing such JSON strings, these values will appear as character vectors. In order to obtain the original types, the user needs to manually coerce them back to the desired type using the corresponding `as` function, e.g. `as.POSIXct`, `as.Date`, or `as.factor`. JSON is subject to the same limitations as text based formats such as `CSV`.
+
+#### Matrices
+
+#### [Video on JSON--R matrix interface](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/JSONmatrix.mp4)
+
+R has the ability to interface with basic linear algebra subprograms such as `LAPACK`. These libraries provide well tuned, high performance implementations of important linear algebra operations for calculating inner products, eigenvalues, singular value decompositions, etc. These are building blocks of statistical methods such as linear regression and principal component analysis.
+
+Linear algebra methods operate on matrices, which are 2-dimensional structures of homogeneous values as discussed previously.
+```{r}
+x <- matrix(1:12, nrow=3, ncol=4)
+print(x)
+```
+A matrix is stored in memory as a single atomic vector with an attribute called `dim` defining the dimensions of the matrix. The product of the dimensions is equal to the length of the vector.
+```{r}
+attributes(volcano)
+length(volcano)
+```
+
+Even though the matrix is stored as a single vector, the way it is printed and indexed makes it conceptually a 2 dimensional structure. In `jsonlite` a matrix maps to an array of equal-length subarrays:
+```{r}
+x <- matrix(1:12, nrow=3, ncol=4)
+(x.json <- toJSON(x))
+```
+
+Even though R stores matrices in column major order, `jsonlite` encodes matrices in row major order. When the JSON string is properly indented (white space and line breaks are optional in JSON), it looks very similar to the way R prints matrices:
+```
+[ [ 1, 4, 7, 10 ],
+  [ 2, 5, 8, 11 ],
+  [ 3, 6, 9, 12 ] ]
+```
+We can reconstruct the matrix in R from JSON.
+```{r}
+fromJSON(x.json)
+```
+
+Because the matrix is implemented in R as an atomic vector, it automatically inherits the conventions mentioned earlier with respect to edge cases and missing values:
+```{r}
+x <- matrix(c(1, 2, 4, NA), nrow=2)
+toJSON(x)
+toJSON(x, na="null")
+toJSON(matrix(pi))
+```
+
+#### Matrix row and column names
+
+Besides the `dim` attribute, the `matrix` class has an additional, optional attribute: `dimnames`. This attribute holds names for the rows and columns in the matrix. However, this information is not in the default JSON mapping for matrices for several reasons.  
+
+1. This attribute is optional so either row or column names or both could be `NULL`.  
+
+> This makes it difficult to define a practical mapping that covers all cases with and without row and/or column names.
+
+2. The names in matrices are mostly there for annotation only; they are not actually used in calculations.  
+
+> The linear algebra subroutines mentioned before completely ignore them, and never include any names in their output. So there is often little purpose of setting names in the first place, other than annotation.
+
+When row or column names of a matrix contain vital information, we might want to transform the data into a more appropriate structure. Wickham calls this “tidying” the data.
+
+In the following example, the predictor variable (treatment) is stored in the column headers rather than the actual data. As a result, these values do not get included in the JSON output:
+```{r}
+x <- matrix(c(NA, 1, 2, 5, NA, 3), nrow=3)
+row.names(x) <- c("Joe", "Jane", "Mary");
+colnames(x) <- c("Treatment A", "Treatment B")
+print(x)
+toJSON(x)
+```
+
+Wickham recommends that the data be melted into its tidy form. Once the data is tidy, the JSON encoding will naturally contain the treatment values:
+```{r}
+library(reshape2)
+y.df <- melt(x, varnames=c("Subject", "Treatment"))
+y.df
+(y.json <- toJSON(y.df, pretty=TRUE))
+```
+We can reconstruct the data frame in R from JSON.
+```{r}
+fromJSON(y.json)
+```
+The `melt` function will be discussed in Module 3.
+
+#### Lists
+
+#### [Video on JSON--R list interface](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/JSONlist.mp4)
+
+The `list` is the most general purpose data structure in R. It holds an ordered set of elements, including other lists, each of arbitrary type and size. Two types of lists are distinguished: *named* lists and *unnamed* lists. A list is considered named if it has an attribute called `names`. In practice, a named list is any list for which we can access an element by its name, whereas elements of an unnamed list can only be accessed using their index number:
+```{r}
+mylist1 <- list("foo" = 123, "bar"= 456)
+mylist1$bar
+mylist2 <- list(123, 456)
+mylist2[[2]]
+```
+
+#### Unnamed lists
+
+Just like vectors, an unnamed list maps to a JSON array:
+```{r}
+toJSON(list(c(1,2), "test", TRUE, list(c(1,2))))
+```
+
+Note that even though both vectors and lists are encoded using JSON arrays, they can be distinguished from their contents:
+
+* an R vector results in a JSON array containing only primitives;  
+* a list results in a JSON array containing only objects and arrays.  
+
+This allows the JSON parser to reconstruct the original type from encoded vectors and arrays:
+```{r}
+x <- list(c(1,2,NA), "test", FALSE, list(foo="bar"))
+x
+(y <- toJSON(x))
+fromJSON(y)
+```
+The only exception is the empty list and empty vector, which are both encoded as `[ ]` and therefore indistinguishable.
+
+#### Named lists
+
+A named list in R maps to a JSON object:
+```{r}
+toJSON(list(foo=c(1,2), bar="test"))
+```
+Because a list can contain other lists, this works recursively:
+```{r}
+toJSON(list(foo=list(bar=list(baz=pi))))
+```
+
+Named lists map almost perfectly to JSON objects with one exception: list elements can have empty names:
+```{r}
+x <- list(foo=123, "test", TRUE)
+attr(x, "names")
+x$foo
+x[[2]]
+```
+
+In a JSON object, each element in an object must have a valid name. To ensure this property, `jsonlite` uses the same solution as the `print` method, which is to fall back on indices for elements that do not have a proper name:
+```{r}
+x <- list(foo=123, "test", TRUE)
+x
+toJSON(x)
+```
+This behavior ensures that all generated JSON is valid. However, named lists with empty names should be avoided.
+
+#### Data frame
+
+[Video on JSON--R data frame interface](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/JSONdataframe.mp4)
+
+The data frame is the most used data structure in R. This class holds tabular data in which each column is named and (usually) homogeneous. Conceptually it is very similar to a table in relational data bases such as PostgreSQL, where fields are referred to as column names, and records are called rows.
+
+Like a matrix, a data frame can be subsetted with two indices, to extract certain rows and columns of the data:
+```{r}
+is(iris)
+names(iris)
+head(iris)
+# select columns by indices
+iris[1:3, c(1,5)]
+# select colums by name
+iris[1:3, c("Sepal.Length", "Species")]
+```
+
+The behavior of `jsonlite` is designed for compatibility with conventional ways of encoding table-like structures outside the R community. The implementation is more involved, but results in a powerful and more natural way of representing data frames in JSON.
+
+#### Column based versus row based tables
+
+Generally speaking, tabular data structures can be implemented in two different ways:  
+
+* in a column based way;  
+
+> A column based structure consists of a named collection of equal-length, homogeneous arrays representing the table columns. A column based structure is efficient for inserting or extracting certain columns of the data, but it is inefficient for manipulating individual rows. For example to insert a single row somewhere in the middle, each of the columns has to be sliced and stitched back together.
+
+* in a row based fashion.  
+
+> In a row-based structure, the table is implemented as a set of heterogeneous associative arrays representing table rows with field values for each particular record. For row-based implementations, it is the exact other way around: we can easily manipulate a particular record, but to insert/extract a whole column we would need to iterate over all records in the table and read/modify the appropriate field in each of them.
+
+The data frame class in R is implemented in a column based fashion: it constitutes of a named list of equal-length vectors. Thereby the columns in the data frame naturally inherit the properties from atomic vectors discussed before, such as homogeneity, missing values, etc.
+
+Another argument for column-based implementation is that statistical methods generally operate on columns. For example, the `lm` function fits a linear regression by extracting the columns from a data frame as specified by the `formula` argument. R simply binds the specified columns together into a matrix `X` and calls out to a highly optimized FORTRAN subroutine to calculate the OLS estimates.
+
+Unfortunately R is an exception in its preference for column-based storage: most languages, systems, databases, API’s, etc, are optimized for record based operations. For this reason, the conventional way to store and communicate tabular data in JSON seems to almost exclusively row based. This discrepancy presents various complications when converting between data frames and JSON. 
+
+#### Row based data frame encoding
+
+The encoding of data frames is one of the major differences between `jsonlite` and implementations from other currently available packages. Instead of using the column-based encoding also used for lists, `jsonlite` maps data frames by default to an array of records:
+```{r}
+(x <- toJSON(iris[1:2,], pretty=TRUE))
+fromJSON(x)
+```
+
+This output looks a bit like a list of named lists. However, there is one major difference: the individual records contain JSON primitives, whereas lists always contain JSON objects or arrays:
+```{r}
+toJSON(list(list(Species="Foo", Width=21)), pretty=TRUE)
+```
+
+This leads to the following convention when encoding R objects:  
+
+* JSON primitives only appear in vectors and data-frame rows;  
+* primitives within a JSON array indicate a vector;  
+* primitives inside a JSON object indicate a data-frame row;  
+* a JSON encoded list, (named or unnamed) will never contain JSON primitives.  
+
+#### Missing values in data frames
+
+The section on atomic vectors discussed two methods of encoding missing data appearing in a vector. Use:  
+
+* strings, or  
+* the JSON null type.
+
+When a missing value appears in a data frame, there is a third option:
+
+* do not include this field in the JSON record.
+
+```{r}
+x <- data.frame(foo=c(FALSE, TRUE, NA, NA),
+                bar=c("Aladdin", NA, NA, "Mario"))
+x
+(y <- toJSON(x, pretty=TRUE))
+fromJSON(y)
+```
+
+The default behavior of `jsonlite` is to omit missing data from records in a data frame. This seems to be the most conventional method used on the web, and we expect this encoding will most likely lead to the correct interpretation of missingness, even in languages without an explicit notion of `NA`.
+
+#### Relational data: nested records
+
+#### [Video on JSON--R nested records and tables interface](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/JSONmatrix.mp4)
+
+Nested datasets are unusual in R, but frequently encountered in JSON. Such structures do not really fit the vector-based paradigm which makes them harder to manipulate in R. However, nested structures are too common in JSON to ignore.
+
+The most common scenario is a dataset in which a certain field within each record contains a subrecord with additional fields. The `jsonlite` implementation maps these subrecords to a nested data frame.
+
+Whereas the data frame class usually consists of vectors, technically a column can also be list or another data frame with matching dimension:
+```{r}
+options(stringsAsFactors=FALSE)
+x <- data.frame(driver = c("Bowser", "Peach"),
+                occupation = c("Koopa", "Princess"))
+x$vehicle <- data.frame(model = c("Piranha Prowler", "Royal Racer"))
+x$vehicle$stats <- data.frame(speed = c(55, 34), weight = c(67, 24),
+                              drift = c(35, 32))
+str(x)
+x
+```
+The data frame values are stretched out, whereas in JSON the nesting is obvious.
+```{r}
+
+toJSON(x, pretty=TRUE)
+x.json <- toJSON(x)
+(y <- fromJSON(x.json))
+```
+
+When encountering JSON data containing nested records on the web, chances are that these data were generated from a relational database. The JSON field containing a subrecord represents a foreign key pointing to a record in an external table. For the purpose of encoding these into a single JSON structure, the tables were joined into a nested structure.
+
+The directly nested subrecord represents a one-to-one or many-to-one relation between the parent and child table, and is most naturally stored in R using a nested data frame. In the example above, the vehicle field points to a table of vehicles, which in turn contains a stats field pointing to a table of stats.
+
+When there is no more than one subrecord for each record, we easily flatten the structure into a single non-nested data frame.
+```{r}
+y <- fromJSON(x.json, flatten=TRUE)
+str(y)
+```
+
+#### Relational data: nested tables
+
+The one-to-one relation discussed above is relatively easy to store in R, because each record contains at most one subrecord. Therefore we can use either a nested data frame, or flatten the data frame.
+
+However, things get more difficult when JSON records contain a field with a nested array. Such a structure appears in relational data in case of a one-to-many relation. A standard textbook illustration is the relation between authors and titles. For example, a field can contain an array of values:
+```{r}
+x <- data.frame(author = c("Homer", "Virgil", "Jeroen"))
+x$poems <- list(c("Iliad", "Odyssey"), c("Eclogues", "Georgics", "Aeneid"), vector());
+x
+names(x)
+toJSON(x, pretty = TRUE)
+```
+As can be seen from the example, the way to store this in a data frame is using a list of character vectors. This works, and although unconventional, we can still create and read such structures in R relatively easily.
+
+However, in practice the one-to-many relation is often more complex. It results in fields containing a set of records. In R, the only way to model this is as a column containing a list of data frames, one separate data frame for each row:
+```{r}
+x <- data.frame(author = c("Homer", "Virgil", "Jeroen"))
+x$poems <- list(
+  data.frame(title=c("Iliad", "Odyssey"), year=c(-1194, -800)),
+  data.frame(title=c("Eclogues", "Georgics", "Aeneid"),
+             year=c(-44, -29, -19)),
+  data.frame()
+)
+x
+toJSON(x, pretty=TRUE)
+```
+Because R doesn’t have native support for relational data, there is no natural class to store such structures. The best we can do is a column containing a list of sub-data frames. This does the job, and allows the R user to access or generate nested JSON structures.
+
+However, a data frame like this cannot be flattened, and the class does not guarantee that each of the individual nested data frames contain the same fields, as would be the case in an actual relational data base.
+
+
+The next section takes a higher-level view and explains the importance of structure consistency for dynamic data. This topic refers to consistency among different instantiations of a JSON structure, rather than a single case.
+
+#### Structural consistency and type safety in dynamic data
+
+Be sure to read this section in Jeroen Ooms' [jsonlite Package Vignette](https://cran.r-project.org/web/packages/jsonlite/vignettes/json-mapping.pdf). 
+
+### 2.2.4 Text Processing
+
+Plain text is a very common format for storing information, e.g., most web data. Thus, we need to be able to manipulate text. Processing text data is usefule for:  
+
+* converting data from one text format to another;  
+* searching for and extracting important keywords or specific patterns of characters from within a large set of text.  
+
+For now, read Section 9.9 in Paul Murrell's [Introduction to Data Technologies](https://www.stat.auckland.ac.nz/~paul/ItDT/).
+
+Notes from Murrell's Chapter 9, Section 9 can be found here:
+[text processing](http://www.stat.wvu.edu/~jharner/courses/stat623/notes/c09s9/c09s9.html). The `c09s9.Rmd` file and its output is also found in the subdirectoy `c09s9`. Regular expressions are covered in this file and two examples are given.
+
+## 2.3 Binary Data Sources
+
+#### [Video on binary data](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/Binary.mp4)
+
+Material in this section (except for subsection 2.3.1) is based on material in Paul Murrell's [Introduction to Data Technologies](https://www.stat.auckland.ac.nz/~paul/ItDT/).
+
+A binary format is a more complex storage solution than a plain text format. However, it:    
+
+* provides faster and more flexible access to the data;   
+* uses up less memory.  
+
+A file with a binary format is simply a block of computer memory, just like a file with a plain text format. The difference lies in how the bytes of computer memory are used.
+
+#### Integers
+
+Bytes can also represent *integers*.  
+
+* 00000001 represents 1  
+* 00000010 represents 2   
+* 00000011 represents 3, etc.   
+
+8 bits can represent $2^8 = 256$ integers (0 to 255). 48 can be represents in 1 byte, but it takes two bytes if it is represents as plain text. We still cannot store large integers. For example, in two bytes we could store integers with a max value of $2^{16} - 1 = 65,535$ and in four bytes we could store integers with a max value of $2^{32} - 1 = 4,294,967,295$. In general, for $k$ bits the maximum integer is $2^k -1$. For signed integers we can store the range of integers $\pm 2^{15} -1$.
+
+#### Real Numbers
+
+A byte can also store *real numbers*. In practice at least 32 bits are used to store real numbers. The correspondence between bit patterns and real numbers is not intuitive.
+
+*Floating point* is a method of representing real numbers. Real numbers are represented approximately by a fixed number of significant digits and scaled using an exponent.  
+
+*Double precision* is a binary format that uses 64 bits (8 bytes) and its significance has a precision of 53 bits or about 16 decimal digits. R uses double precision arithmetic.
+
+*Single precision* is a binary format that uses 32 bits (4 bytes) and its significance has a precision of 24 bits or about 7 decimal digits.
+
+### 2.3.1 BSON
+
+BSON is a data interchange format used mainly as a data storage and network transfer format in the MongoDB database. It is a binary form for representing simple data structures, associative arrays (called objects or documents in MongoDB), and various data types of specific interest to MongoDB. The name "BSON" is based on the term JSON and stands for "Binary JSON"
+
+MongoDB is a document-based NoSQL database. MongoDB stores data in documents with dynamic schemas. 
+
+Two R packages are available for providing the interface with MongoDB, namely `RMongo` and `rmongodb`.
+
+### 2.3.2 NetCDF
+
+The Point Nemo temperature data is stored, among other ways, in network Common Data Form (netCDF), a binary format. It is open source, whereas many binary formats are proprietary. A netCDF file begins with a header followed by the raw data. The netCDF starts with the characters: C, D, F. The fourth byte is the version number.
+
+The Point Nemo data is also stored in netCDF format. It would be read as:
+```
+library(ncdf)
+nemonc <- open.ncdf("pointnemotemp.nc")
+nemonc
+class(nemonc)
+nemoTemps <- get.var.ncdf(nemonc, "Temperature")
+nemoTemps
+```
+However, we were unable to install the `ncdf` library on `gofirst`, but you should be able to run the code on your local machine.
+
+The header file contain pointers to the locations of the raw data and contains information on how the raw data are stored. For the Point Nemo data, the raw data starts at byte 624 and each temperature is stored as a 8 byte real number.
+
+It is possible to calculate the location of a particular data value in the file. This cannot be done with a text-based format.
+
+Generally, for a binary format, it is possible to jump to a specific location in the file. This is called *random access*. A text-based file must be read from beginning to end. This is called *sequential access*.
+
+### 2.3.3 PDF documents
+
+Many documents are now published in Adobe's Portable Document Format (PDF). PDF may contain tables, which is how the data may be received.
+
+A PDF document is primarily a description of how the data should be displayed. Values are intertwined with this information. It might be possible to cut-and-paste tabular values, but access through an API is difficult.
+
+### 2.3.4 Dates
+
+Dates can be stored as text or as a number, e.g., the number of days since Jan. 1970. Storing dates as numbers allows calculations to be done on the dates. International standards are used to represent dates, e.g., 2006-03-01.
+
+Date-times can also be represented.
+
+### 2.4 Spreadheets
+
+Spreadsheets are widely used as a storage option. Microsoft Excel is commonly used spreadsheet software. The corresponding spreadsheet format is Microsoft Excel workbook.
+
+#### Spreadsheet formats
+
+Previously Excel workbooks used a binary format, XLS, which was difficult to decode. Now Excel workbooks are stored in an XML-based format called Open Office XML (OOXML). It is not clear how open OOXML is.
+
+The main difference between these two file extensions is that the XLS is created on the version of Excel prior to 2007 while XLSX is created on the version of Excel 2007 and onward. XLS is a binary format while that XLSX is Open XML format.
+
+Open Office Calc uses an XML-based standard format called Open Document Format (ODF).
+
+Neither OOXML or ODF are good for storing data since a lot of data is stored in the spreadsheet about how to display the data, how to calculate cells, etc. This information is not relevant to the actual data. Also, the number of rows and columns is limited, so Excel is not useful for "big data."
+
+#### Spreadsheet software
+
+Spreadsheets displays a data set in a rectangular grid of cells. It has the benefits of fixed-width format text files. Spreadsheets have tools to manipulate data, but they are limited. Formulas can also be used.
+
+The point-and-click interface of spreadsheets does not allow steps to be recorded although macros are available.
+
+The function `read.xls` in the R package `gdata` can read both Excel 97--2004 files and Excel 2007+ files.
+```
+# The first time run:
+install.packages("gdata")
+library("gdata", warn.conflicts=F)
+nemoxls <- read.xls("pointnemotemp.xls", header=F,
+                    col.names=c("date", "temp"))
+head(nemoxls)
+```
+`gdata` requires that you have Perl installed, which is a good idea for text processing. You may need to specify the `perl` argument if perl is not in your search path.
+
+The are many other packages for reading Excel into R (or writing), including: `xlsx`, `xlsReadWrite`, and `readxl`. The last was written by Hadley Wickham for ease of use. You can experiment to see which one has the features you like. See [DataCamp](https://www.datacamp.com/community/tutorials/r-tutorial-read-excel-into-r#gs.YJTrWW0) for more examples.
+
+Multiple files cannot be easily handled. Metadata and file names differentiates them and thus programming is difficult. This can be handled, but relational databases are more efficient.
+
+## 2.5 Databases
+
+This section introduces relational data base management systems and NoSQL databases. The relational model is essential for multi-user transactional data, but it does not scale for big data. NoSQL databases are often distributed across a cluster.
+
+Two concepts are central to databases, but unfortunately are [ambiguous](http://blog.thislongrun.com/2015/03/the-confusing-cap-and-acid-wording.html). ACID (Atomicity, Consistency, Isolation, and Durability) is central to relational databases, whereas CAP (Consistency, Availability, and Partition Tolerance) as well as ACID are important for distributed databases. The exploration of this topic is left as a discussion topic.
+
+### 2.5.1 RDBMS
+
+#### [Video on PostgreSQL](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/PostgreSQL.mp4)
+
+Content in this section is based partly on material in Paul Murrell's [Introduction to Data Technologies](https://www.stat.auckland.ac.nz/~paul/ItDT/).
+
+A *relational data base management system* (RDBMS) is based on Codd's *relational model* (RM), which in turn is based on *relational algebra*. It uses Structured Query Language (SQL) as a query language. 
+
+A single logical operation on a database is called a *transaction*. A single transaction can involve multiple changes, e.g., debiting one account and crediting another when funds are transferred in a bank. To perform these operations safely, certain properties must be met.
+
+RDBMS should maintain the ACID properties:  
+
+* Atomicity: transactions are all or nothing;  
+* Consistency: transactions bring the database from one valid state to another;  
+* Isolation: concurrent transactions maintain state as if they are serial transactions;  
+* Durability; a committed transaction maintains state even if there are crashes, power failures, etc.  
+
+We will be using PostgreSQL an open source DBMS that is stable and feature rich. PostgreSQL has a command-line interface for making queries called `psql`. 
+
+We have several built in databases on our PostgreSQL server---`gofirstsql` and `dataexpo`.
+
+The Data Expo data set consists of seven atmospheric measurements at locations on a 24 by 24 grid averaged over each month for six years (72 time points). The elevation (height above sea level) at each location is also included in the data set.
+
+The table schema for `dataexpo` is defined as follows.
+```
+date_table ( ID [PK], date, month, year )
+
+location_table ( ID [PK], longitude, latitude, elevation )
+
+measure_table ( date [PK] [FK date_table.ID],
+                location [PK] [FK location_table.ID],
+                cloudhigh, cloudlow, cloudmid, ozone,
+                pressure, surftemp, temperature )
+```
+
+The `dataexpo` database can be invoked using `psql` in RStudio's `bash` shell as follows:
+```
+/usr/bin/psql -W dataexpo
+```
+`-w` causes a prompt for your password.
+
+Databases can only be setup by the database administrator (DBA). Once established you can populate it with tables if you have write permissions. Tables were added to the `dataexpo` database by the following command:
+```
+/usr/bin/psql -W dataexpo < dataexpo.sql
+```
+`dataexpo.sql` in your module 2 directory contains code for constructing tables (and their schema) and inserting the data into these tables. The order of creating tables (`CREATE TABLE`) is important since a table must be present before it can be referenced.
+
+The `psql` commands for listing the tables in the database(`\d) and for specific information about a specific table (`\d table`) are:
+```
+\d
+
+             List of relations
+ Schema |      Name      | Type  |  Owner  
+--------+----------------+-------+---------
+ public | date_table     | table | eharner
+ public | location_table | table | eharner
+ public | measure_table  | table | eharner
+(3 rows)
+
+\d date_table
+         Table "public.date_table"
+ Column |         Type          | Modifiers 
+--------+-----------------------+-----------
+ id     | integer               | not null
+ date   | date                  | 
+ month  | character varying(10) | 
+ year   | integer               | 
+Indexes:
+    "date_table_pkey" PRIMARY KEY, btree (id)
+Referenced by:
+    TABLE "measure_table" CONSTRAINT "measure_date_table_fk" FOREIGN KEY (date) REFERENCES date_table(id)
+    
+\q
+```
+The last command quits `psql`.
+
+To get help use:  
+
+* `\h` to list SQL commands;  
+* `\h` command to show syntax for command;  
+* `\?` to list psql commands  
+
+Generally, we will connect to PostgreSQL through the R package `RPostgreSQL`.
+
+Ordinarily, we would use:
+```
+library(RPostgreSQL)
+
+tryCatch({
+  drv <- dbDriver("PostgreSQL")
+  con <- dbConnect(drv, dbname='dataexpo')
+
+  dbListConnections(drv)
+
+  dbListTables(con)
+  dbListFields(con, "location_table")
+
+# more R code
+},
+finally = {
+  dbDisconnect(con)
+  dbUnloadDriver(drv)
+})
+```
+This provide safe coding in case there is a network problem. However, in order to get printed output in the `try` part, we will use regular R code.
+
+```{r}
+library(RPostgreSQL)
+
+drv <- dbDriver("PostgreSQL")
+con <- dbConnect(drv, host=host.name, dbname='dataexpo')
+
+dbListConnections(drv)
+
+dbListTables(con)
+dbListFields(con, "location_table")
+
+# dbGetQuery returns a data.frame which can be used directly
+meas <- dbGetQuery(con, "select * from location_table")
+class(meas)
+head(meas)
+rm(meas)
+```
+We use `dbGetQuery` here to select all columns from the `location_table` and return the results in a data frame.
+
+We now consider an alternative approach to select the data from the `location_table`.
+```{r}
+# dbSendQuery returns a PostgreSQLResult
+measures <- dbSendQuery(con, "select * from location_table")
+dbGetStatement(measures)
+# We can then fetch directly from the PostgreSQLResult
+fetch(measures, n=10)
+
+# The default number of records to retrieve is 500 per fetch
+while (!dbHasCompleted(measures)) {
+  chunk <- fetch(measures, n=50)
+  print(nrow(chunk))
+}
+
+class(measures)
+dbClearResult(measures)
+
+# n=-1 fetches all the remaining records
+# dbFetch(measures, n=-1)
+```
+In principle, it would be possible to extract data from the tables of interest and use R functions to join as needed. However, this would be far less efficient than selecting directly from the database. The following example illustrates this.
+
+Suppose we want to plot the average temperature (Kelvin) vs. the base elevation. First, we extract `surftemp` and then average and `elevation` grouped by multiples of 500. The required `select` statement involves joins, grouping, etc.
+```{r}
+temp.avgs <- dbGetQuery(con,
+    "select round(l.elevation/500)*500 base_elev, avg(m.surftemp) avg_temp
+    from measure_table m
+    join location_table l on m.location = l.id 
+    join date_table d on m.date = d.id
+    where d.year = 1998 
+    group by base_elev 
+    order by base_elev")
+temp.avgs
+
+dbDisconnect(con)
+dbUnloadDriver(drv)
+```
+I am assuming you have basic knowledge or `select` from BUDA 520. We use `dbGetQuery` in order to get a data frame directly---in this case `temp.avgs`.
+
+Now plot the data frame.
+```{r}
+plot(temp.avgs,type="l",
+  xlab="Base Elevation (feet)", ylab="Average Temperature(Kelvin)",
+  main=" Avg Temperature by Elevation")
+```
+
+As the base elevation increases, the average temperature tends to decrease as expected.
+
+### 2.5.2 NoSQL
+
+#### [Video on NoSQL databases](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/NoSQL.mp4)
+
+NoSQL (Not only SQL) databases are widely used when storing big data and real-time web data. NoSQL databases:  
+
+* are not based on the relational model;  
+* perform well on clusters;  
+* do not have a fixed schema;  
+* are usually open source;  
+* are specialized for web applications and big data.  
+
+Some NoSQL databases support a SQL-like query language.
+
+Why NoQSL? SQL databases:  
+
+* have an impedance mismatch between the relational model and the application model;  
+* do not run well on clusters.
+
+It would be impossible to run Web 2.0 companies, e.g., Google, Facebook and Twitter, using a RDBMS.
+
+#### Aggregate Data Models
+
+Modern applications need data grouped into units for ACID purposes. Aggregated data is easy to manage over a cluster. Inter-aggregate relationships are handled via map-reduce operations. Often materialized views are precomputed.
+
+#### Data Distribution
+
+Two models are used for distributing data across a cluster.  
+
+* sharding: segment the data by primary key into shards, each stored on a separate node.  
+* replication: copy all data to multiple servers either as master-slave or peer-to-peer.  
+
+#### CAP Theorem
+
+The CAP theorem, or Brewer's theorem, states that it is impossible for a distributed database to simultaneously provide all three of the following guarantees:
+
+* Consistency: every read receives the most recent write or an error;  
+* Availability: every request receives a response, without guarantee that it contains the most recent version of the information;  
+* Partition tolerance: the system continues to operate despite arbitrary partitioning due to network failures. 
+
+Basically, you can choose any two, but cannot have all three. Note: consistency in CAP is not the same as consistence in ACID.
+
+The following are the possibilities:
+
+* CA: uses a 2-phase commit with a block system (only possible in a single data center);  
+* CP: uses shards, but there is some risk of data becoming unavailable if a node fails;  
+* AP: may return inaccurate data, but the system is always available. 
+
+The following are the NoSQL database types:  
+
+* Key-value  
+    + Simplest API (get, put, delete, etc.)  
+    + Data in a blob  
+    + Not necessarily persistent  
+* Document  
+    + Similar to key-value, but with values in a known format  
+    + Structured data, e.g., JSON, BSON, or XML  
+    + Not necessarily persistent  
+* Column-family  
+    + Many columns associated with each row key  
+    + Column families related and often accessed together
+* Graph  
+    + Entities and their relationships stored  
+    + Properties associated with entities  
+    + Properties and direction significance associated with edges  
+    + Easy transversal of relationships  
+    
+Examples of NoSQL databases:  
+
+* Key-value: riak, memcached, redis  
+* Document: CouchDB, MongoDB  
+* Column-family: cassandra, HBase  
+* Graph: Neo4J, Infinite Graph  
+
+Why choose NoSQL? To improve:  
+
+* programmer productivity;
+* data access performance by handling larger data sets, reducing latency, and/or improving throughput.
+
+Selecting a NoSQL database:  
+
+* Key-value is used for session information, preferences, profiles, and shopping carts, i.e., data without relationships.  
+* Document databases are for content management, real-time analytics, and ecommerce. Avoid when aggregate data is needed.  
+* Column family databases are useful for write-heavy operations like logging.  
+* Graph databases are optimal for social networks, spacial data, and recommendation engines.  
+
+## 2.6 Web Services
+
+#### [Video on web services and curl](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/WebServices.mp4)
+
+*Web Services* is a recently introduced phrase. The *Web* and the *HyperText Transfer Protocol (HTTP)* that underlies the communication of data on the Web have become a vital part of our information network and day-to-day environment. Thus, being able to access various forms of data using HTTP is an important facility in a general programming language. We want to be able to:  
+
+* download files,  
+* get data via HTML forms,  
+* "scrape"" HTML page content as data itself, and  
+* use SOAP (Simple Object Access Protocol) to invoke methods provided via Web Services.  
+* use REST APIs
+
+HTTP is a stateless protocol, i.e., no information is kept between message exchanges. The communication usually takes place over TCP/IP, but other transports can be used.
+
+Communication between a host and a client occurs through a request/response pair. The client initiates an HTTP request message, which is serviced through a HTTP response message in return.
+
+The request message is sent by Uniform Resource Locators (URLs). URLs have the following structure:  
+```
+http://www.domain.com:1234/path/to/resource? a=b&x=y
+```
+where:  
+
+* `http` is the protocol;  
+* `www.domain.com` is the host;  
+* `1234` is the port;  
+* `path/to/resource` is the resource path;  
+* `a=b&x=y` is the query.  
+
+The protocol `https` is used for secure communications. The default port is 80, but others can be specified. The resource path is the local path to the resource on the server.
+
+The action to be performed on the host is specified via `HTTP` *verbs*. The common request verbs are:  
+
+* `GET`: fetch an existing resource. The URL contains all the necessary information the server needs to locate and return the resource.  
+* `POST`: create a new resource. `POST` requests usually carry a payload that specifies the data for the new resource.  
+* `PUT`: update an existing resource. The payload may contain the updated data for the resource.  
+* `DELETE`: delete an existing resource.
+
+`PUT` and `DELETE` can be considered specialized versions of the `POST` verb, i.e., they can be packaged as POST requests with the payload containing the exact action: `create`, `update` or `delete`.
+
+The client can initiate requests to the server. In return, the server responds with *status codes* and *message payloads*.
+
+The status codes are:  
+
+* 1xx: Informational Messages---provisional;  
+* 2xx: Successful---the request was successfully processed;  
+* 3xx: Redirection---the client must take additional action;  
+* 4xx: Client Error--- the client is at fault, either by requesting an invalid resource or making a bad request;  
+* 5xx: Server Error---a server failure while processing the request.  
+
+The request or response message has the following generic structure:
+```
+message = <start-line>
+          *(<message-header>)
+          CRLF
+          [<message-body>]
+```
+where
+```
+<start-line> = Request-Line | Status-Line 
+<message-header> = Field-Name ':' Field-Value
+```
+
+Chrome's WebKit inspector can monitor HTTP communications, but other paid applications provide more functionality.
+
+cURL is an open source software project providing a library and command-line tool for transferring data using various protocols. It is written in C and is cross-platform
+
+`libcurl` is a free URL transfer library, supporting FTP, FTPS, HTTP (with HTTP/2 support), HTTPS, and many other protocols. The library supports HTTPS certificates, HTTP POST, HTTP PUT, FTP uploading, Kerberos, HTTP form-based upload, and other services. 
+
+`curl` is a command line tool for getting or sending files using URL syntax. It supports a range of common Internet protocols, currently including HTTP, HTTPS, FTP, FTPS, SCP, SFTP, TFTP, LDAP, and others.
+
+Wikipedia gives a more complete reference: https://en.wikipedia.org/wiki/CURL  
+To experiment with `curl` use RStudio's shell and type in the following:
+```
+curl --version
+curl http://httpbin.org/ip
+curl http://httpbin.org/user-agent
+```
+We can get the content of http://httpbin.org/ by:
+```
+curl http://httpbin.org/get
+{
+  "args": {}, 
+  "headers": {
+    "Accept": "*/*", 
+    "Host": "httpbin.org", 
+    "User-Agent": "curl/7.29.0"
+  }, 
+  "origin": "157.182.3.5", 
+  "url": "http://httpbin.org/get"
+}
+```
+The later uses the `get` verb directly using `curl` from the command line. The output is given for reference.
+
+The `curl` command-line tool is easy enough to use, but we often want to extract text, parse it, and then use various text manipulation functions or machine learning algorithms to get meaning from the text. This is why our foucs will be on R packages that use the `libcurl` library. We can build workflows to extract, parse, manipulate, etc. directly in R.
+
+### 2.6.1 `curl` R Package
+
+The `curl` package is a modern interface to the `cURL` library. It implements R's connection interface with support for encryption (https:// and ftps://), `gzip` compression, authentication, and other `libcurl` features. `curl` is meant to be a replacement of the aging `Rcurl` package (see below).
+
+The best introduction is given by its CRAN [vignette](https://cran.r-project.org/web/packages/curl/vignettes/intro.html).
+
+The `curl` package has been made more accessible by the `httr` package.
+
+### 2.6.2 httr R Package
+
+#### [Video on httr](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/httr.mp4)
+
+The `httr` package provides a wrapper for the `curl` package.
+
+The following two package vignettes describe how the package works:  
+
+1. [httr quickstart guide](https://github.com/hadley/httr/blob/master/vignettes/quickstart.Rmd)  
+2. [api-package](https://github.com/hadley/httr/blob/master/vignettes/api-packages.Rmd)  
+
+The text is this subsection is extracted from the `httr` quickstart guide.
+
+To make a request, first load `httr`, then call `GET()` with a `url`:
+```{r}
+library(httr)
+r <- GET("http://httpbin.org/get")
+```
+
+This gives you a response object. Printing a response object gives you some useful information: the actual `url` used, the `http` status, the file (content) type, the size, and if it's a text file, the first few lines of output.
+```{r}
+r
+```
+The R output is similar to the `curl` output, but more complete. You can pull out important parts of the response with the following helper methods:
+```{r}
+status_code(r)
+headers(r)
+str(content(r))
+```
+Notice that the outputs of `headers` and `content` are named lists. `httpbin.org` accepts many types of `http` request` and returns json that describes the data that it recieved.
+
+You can also use the `GET()`, `HEAD()`, `POST()`, `PATCH()`, `PUT()` and `DELETE()` verbs. `GET()` is used by your browser when requesting a page, and `POST()` is usually used when submitting a form to a server. `PUT()`, `PATCH()` and `DELETE()` are used most often by web APIs.
+
+#### The Response
+
+The data sent back from the server consists of three parts:  
+
+* the status line,  
+* the headers, and  
+* the body.  
+
+The most important part of the status line is the http status code which tells you whether or not the request was successful.
+
+The status code is a three digit number that summarises whether or not the request was succesful (as defined by the server that you're talking to). You can access the status code along with a descriptive message using `http_status()`:
+```{r}
+r <- GET("http://httpbin.org/get")
+# Get an informative description:
+http_status(r)
+
+# Or just access the raw code:
+r$status_code
+```
+
+A succesful request always returns a status of 200. Common errors are 404 (file not found) and 403 (permission denied). 
+
+There are three ways to access the body of the request, all using `content()`:
+
+* `content(r, "text")` accesses the body as a character vector:  
+
+```{r}
+r <- GET("http://httpbin.org/get")
+content(r, "text")
+```
+`httr` will automatically decode content from the server using the encoding supplied in the content-type HTTP header.
+
+* content(r, "raw") for non-text requests accesses the body of the request as a raw vector:
+
+```{r}
+content(r, "raw")
+```
+
+* `httr` provides a number of default parsers for common file types:
+
+```{r}
+# JSON automatically parsed into named list
+str(content(r, "parsed"))
+```
+
+Response headers are accessed by `headers()`:
+```{r}
+headers(r)
+```
+This is a named list, but because http headers are case insensitive, indexing this object ignores case.
+
+Cookies are accessed in a similar way:
+```{r}
+r <- GET("http://httpbin.org/cookies/set", query = list(a = 1))
+cookies(r)
+```
+Cookies are automatically persisted between requests to the same domain:
+```{r}
+r <- GET("http://httpbin.org/cookies/set", query = list(b = 1))
+cookies(r)
+```
+
+The request also consists of three pieces: a status line, headers and a body. The status line defines the http method (`GET`, `POST`, `DELETE`, etc) and the url. You can send additional data to the server in the url (with the query string), in the headers (including cookies) and in the body of `POST()`, `PUT()` and `PATCH()` requests.
+
+A common way of sending simple key-value pairs to the server is the query string: e.g. `http://httpbin.org/get?key=val`. `httr` allows you to provide these arguments as a named list with the query argument. For example, if you wanted to pass `key1=value1` and `key2=value2` to `http://httpbin.org/get` you could do:
+```{r}
+r <- GET("http://httpbin.org/get", 
+  query = list(key1 = "value1", key2 = "value2")
+)
+content(r)$args
+```
+Any NULL elements are automatically dropped from the list, and both keys and values are escaped automatically.
+```{r}
+r <- GET("http://httpbin.org/get", 
+  query = list(key1 = "value 1", key2 = NULL))
+content(r)$args
+```
+
+Cookies are simple key-value pairs like the query string, but they persist across multiple requests in a session (because they're sent back and forth every time). To send your own cookies to the server, use `set_cookies()`:
+```{r}
+r <- GET("http://httpbin.org/cookies", set_cookies("MeWant" = "cookies"))
+content(r)$cookies
+```
+Note that this response includes the `a` and `b` cookies that were added by the server earlier.
+
+`POST()` can include data in the body of the request. `httr` allows you to supply this in a number of different ways. The most common way is a named list:
+```{r}
+r <- POST("http://httpbin.org/post", body = list(a = 1, b = 2, c = 3))
+r
+```
+You can use the `encode` argument to determine how this data is sent to the server:
+```{r}
+url <- "http://httpbin.org/post"
+body <- list(a = 1, b = 2, c = 3)
+
+# Form encoded
+r <- POST(url, body = body, encode = "form")
+r
+# Multipart encoded
+r <- POST(url, body = body, encode = "multipart") # the default
+r
+# JSON encoded
+r <- POST(url, body = body, encode = "json")
+r
+```
+`POST` has a `VERBOSE` argument, but it will not print correctly using `knitr`.
+
+You can also send files off disk:
+```
+POST(url, body = upload_file("mypath.txt"))
+POST(url, body = list(x = upload_file("mypath.txt")))
+```
+`upload_file()` will guess the mime-type from the extension---using the type argument to override/supply yourself. These uploads stream the data to the server: the data will be loaded in R in chunks then sent to the remote server. This means that you can upload files that are larger than memory.
+
+The [api-package](https://github.com/hadley/httr/blob/master/vignettes/api-packages.Rmd) vignette describes how to write an R client for a web API. 
+
+### 2.6.3 RCurl Package
+
+#### [Video on RCurl + REST](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m2/RCurlREST.mp4)
+
+The material for the section is extracted from: [R as a Web Client --- the RCurl package](http://www.omegahat.net/RCurl/RCurlJSS.pdf), by Duncan Temple Lang. Journal of Statistical Software.
+
+The `RCurl` package provides an interface for R based on the `cURL` C-level library that underlies the commonly used `curl` command-line utility for downloading documents and Web sites. It has support for numerous protocols including HTTP/HTTPS, FTP/FTPS/TFTP (trivial file transfer protocol), LDAP (Lightweight Directory Access Protocol) and is highly configurable both in the options it supports and also in how input and output can be customized by the host application, i.e., R in our case. The `RCurl` package provides a tightly integrated interface to a high quality, widely used and high-level library for Web connectivity and requires the installation of this highly portable `libcurl` library.
+
+#### Overview of HTTP
+
+HTTP is a simple mechanism to request a document from a Web server. We are familiar with using our Web browser to request a document. At its simplest, we send the full name of the document to a Web server, e.g., https://github.com/omegahat/RCurl/blob/master/DESCRIPTION. This identifies:  
+
+* the protocol for the request - https,    
+* the name of the Web server or host - github.com,    
+* the fully qualified path name of the specific document (omegahat/RCurl/blob/master/DESCRIPTION) relative the the server’s top-level node.  
+
+RCurl  uses this information to establish a connection to the server via a socket, typically connecting to the Web server machine’s port 80. Having established the basic communication channel, the client makes the request by sending (at least) the following 3 lines:  
+
+1. GET /omegahat/RCurl/blob/master/DESCRIPTION HTTP/1.1   
+2. Host: github.com  
+3.  
+
+The first word `GET` identifies the nature of the request, or the action. This means that we want to retrieve a document from the Web server. The next word in the request is the name of the document being requested `/omegahat/RCurl/blob/master/DESCRIPTION`. And lastly on the first line is `HTTP/1.1` which identifies the dialect of the protocol we are speaking.
+
+The second line `Host: github.com` is the name of the host to which we connected. The third line is blank and that signifies the end of the header information for the HTTP request.
+
+#### Basic Functionality
+
+The `RCurl` package provides an interface to the `libcurl` facilities. `libcurl` is a library programmed in C that provides portable tools for accessing URIs via HTTP requests and other protocols. It is feature rich, providing options for controlling almost all parts of the HTTP dialog. The RCurl package provides a high-level, more convenient access to the functionality in `libcurl` itself.
+
+There are three high-level functions in `RCurl`:  
+
+* `getURL()`,  
+* `getForm()`, and  
+* `postForm()`.  
+
+Each of these functions sends an HTTP request and expects a document in response. 
+
+#### Getting URIs
+
+The most common use of HTTP is to download static or "fixed content" files. The function `getURL()` or `getURI()` provides a simple mechanism to do this. It takes the URL/URI in the usual form: `protocol://server/file/name`. The protocol will typically be http, but other protocols are supported.
+
+First, we load the `RCurl` package.
+```{r}
+library(RCurl)
+```
+
+We can fetch the main Web page for the RCurl package with the R command:
+```{r}
+w <- getURL("https://www.stat.auckland.ac.nz/~paul/ItDT/")
+```
+The `getURL()` function uses the `RCurl` and `libcurl` facilities to send the HTTP request and to receive the answer. It collects the body of the response into a single string and returns that. In our command, that string is now available in the variable `w`. It contains the source of the HTML page for the `~paul/ItDT/` file.
+
+One can then process this value as appropriate, e.g. read data using `read.table()` or `scan()`; parsing HTML or XML using `htmlTreeParse()` or `xmlTreeParse()`.
+
+One option is to use `readLines()` with a text connection as an argument.
+```{r}
+wp <- textConnection(w)
+rcurl <- readLines(wp)
+length(rcurl)
+```
+
+The principal part is given here:
+```{r}
+rcurl[17:34]
+```
+
+#### Forms
+
+There are two functions in `RCurl` that can be used to submit HTML forms via HTTP: `getForm()` and `postForm()`. These correspond to the two different ways of submitting a form:  
+
+* `GET`  
+* `POST`  
+
+These two functions hide all of the details of composing the query. For each, we just specify the URI of the form and then a collection of `name-value` pairs for the form variables given as a list or via the `...` mechanism in R.
+
+The Google search engine is perhaps the most widely known and used HTML form. We can programmatically send a query using the following R command:  
+```{r}
+google.com <- getForm("http://www.google.com/search",
+                      q ="RCurl",
+                      hl = "en", ie = "ISO-8859-1", oe = "ISO-8859-1",
+                      btnG = "Google+Search")
+length(google.com)
+writeLines(google.com, "google.com.html")
+gregexpr("RCurl", google.com)
+```
+This submits the query with the single search word `RCurl`. The other arguments provide context for the query to Google's search script giving the desired input and output encoding and language. `writeLines()` write the output to the `google.com.html` external file.
+
+How do we find the names of the parameters and the appropriate values for the form submission? We can do this by examining the HTML source of the Google front page. Alternatively, we can take the information directly from the browser’s URL bar after the query has completed.
+
+The `postForm()` has the same user-level interface and only differs in how the underlying HTTP request is formed.
+
+```{r}
+if(url.exists('http://www.wormbase.org/db/searches/advanced/dumper')) {
+  txt = postForm('http://www.wormbase.org/db/searches/advanced/dumper',
+         species="briggsae",
+         list="",
+         flank3="0",
+         flank5="0",
+         feature="Gene Models",
+         dump = "Plain TEXT",
+         orientation = "Relative to feature",
+         relative = "Chromsome",
+         DNA ="flanking sequences only",
+         .cgifields =c("feature", "orientation", "DNA", "dump", "relative"))
+}
+txt
+```
+
+#### Options controlling the request
+
+At this point in our description, the functions `getURI()` and `getForm()` provide the same basic functionality that is already available in R, except that they add support for various different protocols such as HTTPS, FTPS and handle various aspects such as chunked responses. The infrastructure provided by `RCurl` and `libcurl` allows us to customize each of these functions with numerous parameters that govern the HTTP request and response and how they are sent and received.
+
+The three functions in the simplest interface will suffice for most end-users. These allow the caller to download the contents of URI, and get or post a dynamic “form” request. For these, the only inputs that are needed are:  
+
+* the URI of the document or script on the remote Web server, and,  
+* for forms, the `name = value` pairs given as R arguments to the `getForm()` or `postForm()` functions.  
+
+#### SOAP
+
+The Simple Object Access Protocol (SOAP) is a mechanism by which function calls are sent over HTTP to remote servers. This is one of the mechanisms underlying Web services. It allows us to use functionality in remote servers from within different applications. REST is the principal alternative.
+
+**SSL**
+
+SSL (Secure Sockets Layer) is a standard security technology for establishing an encrypted link between a server and a client, e.g., a web server (website) and a browser; or a mail server and a mail client (e.g., gmail).
+
+We can check whether the particular installation of `libcurl` and the `RCurl` package supports https requests with the command:
+```{r}
+"https" %in% curlVersion()$protocols
+```
+
+For some Web servers, the SSL layer will fail to connect to the Web server because it cannot authenticate that server. SSL uses digitally signed certificates to verify the identity of the server so as to avoid sending sensitive data to bogus servers. 
+
+We use the two curl options `ssl.verifyhost` and `ssl.verifypeer` and set them both to FALSE to turn off he verification. We also specify the `followlocation` option to allow `libcurl` to follow any redirections to other URIs by the remote server. So the command to access this page is then:
+```{r}
+svnR <-getURI("https://svn.r-project.org/R/trunk",
+              ssl.verifyhost = FALSE,
+              ssl.verifypeer = FALSE,
+              followlocation = TRUE)
+svnR <- strsplit(svnR, "\n", fixed=TRUE)[[1]]
+writeLines(svnR, "svnR.html")
+```
+This code accesses the Subversion repository for R.
+
+**Cookies**
+
+Cookies are used by the server to maintain state across separate transactions with a client. These allow the server to “remember” you in subsequent interactions. The server sends cookies as `name=value` pairs in the header of the response (as Set-Cookie instructions) and the client is expected to manage these and include the cookies from the target server in subsequent requests. Cookies have an expiration date and also a path and domain (or host name).
+
+```{r}
+entrez <- getURI("http://www.ncbi.nlm.nih.gov/entrez",
+                 cookie = "WebCubbyUser=ABC1234",
+                 followlocation = TRUE)
+entrez <- strsplit(entrez, "\n", fixed=TRUE)[[1]]
+writeLines(entrez, "entrez.html")
+```
+
+### 2.6.4 REST
+
+This text is taken from [Learn REST: a Tutorial](http://rest.elkstein.org/2008/02/what-is-rest.html). I recommend you look at the complete tutorial.
+
+Increasingly REST with a JSON response is being used for web services, e.g., see [Fetching JSON data from REST APIs](https://cran.r-project.org/web/packages/jsonlite/vignettes/json-apis.html).
+
+REST (or ReST) stands for Representational State Transfer, which relies on a stateless, client-server, cacheable communications protocol. In virtually all cases, the HTTP protocol is used.
+
+REST is an architecture style for designing networked applications. The idea is that, rather than using complex mechanisms such as CORBA (Common Object Request Broker Architecture), RPC (Remote Procedure Call) or SOAP (Simple Object Access Protocol) to connect between machines, simple HTTP is used to make calls between machines.
+
+RESTful applications use HTTP requests to post data (create and/or update), read data (e.g., make queries), and delete data. Thus, REST uses HTTP for all four CRUD (Create/Read/Update/Delete) operations.
+
+If we are simply fetching data, the simplest way is to use `fromJSON` in the `jsonlite` package.
+```{r}
+hadley_orgs <- fromJSON("https://api.github.com/users/hadley/orgs")
+hadley_repos <- fromJSON("https://api.github.com/users/hadley/repos")
+gg_commits <- fromJSON("https://api.github.com/repos/hadley/ggplot2/commits")
+gg_issues <- fromJSON("https://api.github.com/repos/hadley/ggplot2/issues")
+
+# to see the structure of gg_issues (too long to print)
+# str(gg_issues) 
+
+# latest issues
+paste(format(gg_issues$user$login), ":", gg_issues$title)
+```
+## 2.7 Other Sources of Data
+
+### 2.7.1 Dates and Times (lubridate)
+
+Date-time data can be frustrating to work with in R. R commands for date-times are generally unintuitive and change depending on the type of date-time object being used. Moreover, the methods we use with date-times must be robust to time zones, leap days, daylight savings times, and other time related quirks, and R lacks these capabilities in some situations. Lubridate makes it easier to do the things R does with date-times and possible to do the things R does not. Specifically, [lubridate](https://github.com/hadley/lubridate) provides:
+
+* a set of intuitive date-time related functions that work the same way for all common date-time classes (including those from `chron`, `timeDate`, `zoo`, `xts`, `its`, `tis`, `timeSeries`, `fts`, and `tseries`)
+
+* quick and easy parsing of date-times: `ymd()`, `dmy()`, `mdy()`, ...
+
+* simple functions to extract and modify components of a date-time, such as years, months, days, hours, minutes, and seconds: `year()`, `month()`, `day()`, ...
+
+* helper functions for handling time zones: `with_tz()`, `force_tz()`
+
+Lubridate also expands the type of mathematical operations that can be performed with date-time objects.
+
+* durations, which measure the exact amount of time between two points
+
+* periods, which accurately track clock times despite leap years, leap seconds, and day light savings time
+
+* intervals, a protean summary of the time information between two points
+
+### 2.7.2 Foreign Data Formats (Haven)
+
+[Haven](https://github.com/hadley/haven) allows you to load foreign data formats (SAS, SPSS and Stata) in to R by wrapping the ReadStat C library. Haven offers similar functionality to the base foreign package but:  
+
+* It reads SPSS files (`.dta` and `.por`), reads Stata 13 and 14 files (foreign only works up to Stata 12), and SAS's proprietary binary format (`SAS7BDAT`, `SAS7BCAT`). It does not support many of the now more exotic formats supported by foreign.  
+
+* Can also write SPSS, Stata, and SAS files.  
+
+*  Date times are converted to corresponding R classes and labelled vectors are returned as a new labelled class. You can easily coerce to factors or replace labelled values with missings as appropriate. All functions return tibbles.
+
+## Learning Activities
+
+Assignment 2 covers modules 2 and 3 and will be sent as a separate file as part of module 3. This is an individual assignment.
+
+## Assessments
+
+Quiz 2 will be sent as a separate file.
+
+## Discussion Questions
+
+1. What properties are specified by the acronyms ACID and CAP and how are they relevant for SQL databases and distributed databases?
+
+2. Why is JSON often preferred over XML as a data format for the web. Under what circumstances is XML preferred?
+
+3. Why is [REST](http://www.drdobbs.com/web-development/restful-web-services-a-tutorial/240169069) often preferred over SOAP for Web Services?  Under what circumstances is SOAP preferred? To get started see:  
+
+* [REST vs. SOAP](http://blog.smartbear.com/apis/understanding-soap-and-rest-basics/)  
+* [Fetching JSON data from REST APIs](https://cran.r-project.org/web/packages/jsonlite/vignettes/json-apis.html)  
+
+Note: Questions 2 and 3 are related.
+
+## Reading Assignments
+
+[Advanced R](http://adv-r.had.co.nz/), Hadley Wickham, CRC Press, Chapter 2.  
+
+[Introduction to Data Technologies](https://www.stat.auckland.ac.nz/~paul/ItDT/), Paul Murrell, Chatman Hall/CRC, Chapters 5, 6, 7, and 8; Sections 9.4, 9.5, 9.6, and 9.7.  
+
+[jsonlite Package Vignette](https://cran.r-project.org/web/packages/jsonlite/vignettes/json-mapping.pdf), by Jeroen Ooms. 
+
+[The curl package: a modern R interface to libcurl](https://cran.r-project.org/web/packages/curl/vignettes/intro.html), by Jeroen Ooms.
+
+[httr quickstart vignette](https://github.com/hadley/httr/blob/master/vignettes/quickstart.Rmd), by Hadley Wickham.
+
+[httr api-package Vignette](https://github.com/hadley/httr/blob/master/vignettes/api-packages.Rmd), by Hadley Wickham.
+
+[Learn REST: a Tutorial](http://rest.elkstein.org/2008/02/what-is-rest.html)
+
+[REST API for Twitter](https://www.r-bloggers.com/talking-to-twitters-rest-api-v1-1-with-r/), by Raffael Vogler.
+
+[REST API documentation for Twitter](https://dev.twitter.com/rest/public)
+
+[twitteR Package](https://www.r-bloggers.com/setting-up-the-twitter-r-package-for-text-analytics/), by 
+
+
+
+
+
+
+

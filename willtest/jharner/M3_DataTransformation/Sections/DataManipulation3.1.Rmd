@@ -1,0 +1,47 @@
+---
+title: "Module 3: Data Transformation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# install.package("nycflights13", "readxl")
+library(dplyr)
+library(nycflights13)
+```
+
+## 3.1 Data manipulation with `dplyr`
+
+#### [Video on `dplyr` Data Manipulation](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m3/DataManipulation.mp4)
+
+This section explores the main functions in `dplyr` which Hadley Wickham describes as a *grammar of data manipulation*---the counterpoint to his *grammar of graphics* in `ggplot2`.
+
+The github repo for [`dplyr`](https://github.com/hadley/dplyr) not only houses the R code, but also vignettes for various use cases. The introductory vignette is a good place to start and can by viewed by typing the following on the command line: `vignette("introduction", package = "dplyr")` or by opening the `introduction.Rmd` file in the vignettes directory of the `dplyr` repo. The material for this section is extracted from Hadley Wickham's [Introduction to dplyr Vignette](https://github.com/hadley/dplyr/blob/master/vignettes/introduction.Rmd). 
+
+`dplyr` was designed to:  
+
+* provide commonly used data manipulation tools;  
+* have fast performance for in-memory operations;  
+* abstract the interface between the data manipulation operations and the data source.
+
+`dplyr` operates on data frames, but it also operates on tibbles, a trimmed-down version of a data frame (`tbl_df`) that provides better checking and printing. Tibbles are particularly good for large data sets since they only print the first 10 rows and the first 7 columns by default although additional information is provided about the rows and columns.
+
+The real power of `dplyr` is that it abstracts the data source, i.e., whether it is a data frame, a database, or Spark.
+
+All the `dplyr` vignettes use the `nycflights13` data frame which contains the 336,776 flights that departed from New York City in 2013. The `flights` data set is one of several data sets that can be merged.
+```{r}
+dim(flights)
+flights # or print(flights)
+```
+The variable names in `flights` are self explanatory, but note that `flights` does not print like a regular data frame. This is because it is a *tibble*, which is designed for data with a lot of rows and/or columns, i.e., big data. The `print` function combines features of `head` and `str`. `str` gives the inheritance path along with a summary of the data frame. For brevity we will use `class()` to give the inheritance path: 
+```{r}
+class(flights)
+```
+
+An inline equation: $y = \alpha + \beta x + \epsilon$
+
+A display equation:  
+$$
+y = \alpha + \beta x + \epsilon
+$$

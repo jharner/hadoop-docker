@@ -1,0 +1,914 @@
+---
+title: "Module 3: Data Transformation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# install.package("nycflights13", "readxl")
+```
+
+## Overview
+
+This module develops a grammar of data manipulation for statistical tables---not unlike SQL for databases. The verbs for this data manipulation are presented for single tables and two tables. The normalization of tables is called data tidying and is introduced.
+
+## Objectives
+
+By the end or this module, students will be able to:
+
+1. Use the grammar of data manipulation with real data sets;  
+2. Abstract the data source;  
+3. Apply single-table verbs to the rows and columns of a data frame;  
+4. Apply these verbs to grouped observations in a data set;  
+5. Chain functions to develop workflows, including data manipulation, analysis, and graphics;  
+6. Extract data from databases, including distributed databases;  
+7. Combine tables with two-table verbs;  
+8. Clean data based on data structure and semantics;  
+
+## 3.1 Data manipulation with `dplyr`
+
+#### [Video on `dplyr` Data Manipulation](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m3/DataManipulation.mp4)
+
+This section explores the main functions in `dplyr` which Hadley Wickham describes as a *grammar of data manipulation*---the counterpoint to his *grammar of graphics* in `ggplot2`.
+
+The github repo for [`dplyr`](https://github.com/hadley/dplyr) not only houses the R code, but also vignettes for various use cases. The introductory vignette is a good place to start and can by viewed by typing the following on the command line: `vignette("introduction", package = "dplyr")` or by opening the `introduction.Rmd` file in the vignettes directory of the `dplyr` repo. The material for this section is extracted from Hadley Wickham's [Introduction to dplyr Vignette](https://github.com/hadley/dplyr/blob/master/vignettes/introduction.Rmd). 
+
+`dplyr` was designed to:  
+
+* provide commonly used data manipulation tools;  
+* have fast performance for in-memory operations;  
+* abstract the interface between the data manipulation operations and the data source.
+
+`dplyr` operates on data frames, but it also operates on tibbles, a trimmed-down version of a data frame (`tbl_df`) that provides better checking and printing. Tibbles are particularly good for large data sets since they only print the first 10 rows and the first 7 columns by default although additional information is provided about the rows and columns.
+
+The real power of `dplyr` is that it abstracts the data source, i.e., whether it is a data frame, a database, or Spark.
+
+All the `dplyr` vignettes use the `nycflights13` data frame which contains the 336,776 flights that departed from New York City in 2013. The `flights` data set is one of several data sets that can be merged.
+```{r}
+library(dplyr)
+library(nycflights13)
+dim(flights)
+flights # or print(flights)
+```
+The variable names in `flights` are self explanatory, but note that `flights` does not print like a regular data frame. This is because it is a *tibble*, which is designed for data with a lot of rows and/or columns, i.e., big data. The `print` function combines features of `head` and `str`. `str` gives the inheritance path along with a summary of the data frame. For brevity we will use `class()` to give the inheritance path: 
+```{r}
+class(flights)
+```
+
+### 3.1.1 Single Table Verbs
+
+#### [Video on `dplyr` verbs](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m3/Verbs.mp4)
+
+`dplyr` provides a suite of verbs for data manipulation:  
+
+* `filter`: select rows in a data frame;  
+* `arrange`: reorder rows in a data frame;  
+* `select`: select columns in a data frame;  
+* `distinct`: find unique values in a table;  
+* `mutate`: add new columns to a data frame;  
+* `summarise`: collapses a data frame to a single row;  
+* `sample_n`: take a random sample of rows.  
+
+`filter()` allows the selection of rows using Boolean operations, e.g., `&` or `|`.
+
+```{r}
+# The following is equivalent to filter(flights, month == 1, day == 1).
+filter(flights, month == 1 & day == 1)
+# In base R this would be done as:
+# flights[flights$month == 1 & flights$day == 1, ]
+filter(flights, month == 1 | month == 2)
+# Rows can also be selected by positon using slice:
+slice(flights, 1:3)
+```
+
+`arrange()` orders a data frame by a set of column names (or more complicated expressions). If you provide more than one column name, each additional column will be used to break ties in the values of preceding columns:
+```{r}
+arrange(flights, dep_delay)
+# Or with `arr_delay` descending:
+arrange(flights, desc(dep_delay))
+```
+
+`select()` allows you to focus  on the variables of interest:
+```{r}
+# Select columns by name
+select(flights, year, month, day)
+# Select all columns between year and day (inclusive)
+select(flights, year:day)
+# Select all columns except those from year to day (inclusive)
+select(flights, -(year:day))
+```
+
+`dplyr::select()` is similar to `base::select()`, but is included in `dplyr` to have a comprehensive, consistent architecture for data manipulation.
+
+It is possible to rename variables with `select`, but `rename` is a better choice since `select` drops any unnamed variables:
+```{r}
+rename(flights, tail_num = tailnum)
+```
+
+`distinct()` finds unique values in a table:
+```{r}
+distinct(flights, tailnum)
+distinct(flights, origin, dest)
+```
+This is similar to `base::unique()` but is faster.
+
+`mutate()` transforms variables, i.e., adds new columns that are functions of existing columns.
+```{r}
+mutate(flights,
+       gain = arr_delay - dep_delay,
+       speed = distance / air_time * 60)
+```
+
+`dplyr::mutate()` works similarly to `base::transform()`,  but `transform()` does not allow you to refer to columns that you've just created. For example, the following would not work with `transform()`, since the second argument depends on the first:
+```{r}
+mutate(flights,
+       gain = arr_delay - dep_delay,
+       gain_per_hour = gain / (air_time / 60))
+```
+Note: The new variables are not actually part of `flights` as can be seen by printing `flights`, but the new tibble can be used as part of a workflow. Alternately, a new tibble, e.g., `flights_gain` could be created by: `flights_gain <- mutate(...)`.
+
+If you only want to keep the new variables, use `transmute()`:
+```{r}
+transmute(flights,
+          gain = arr_delay - dep_delay,
+          gain_per_hour = gain / (air_time / 60)
+)
+```
+
+`sample_n()` and `sample_frac()` are used to take a random sample of rows for a fixed number and a fixed fraction, respectively.
+```{r}
+sample_n(flights, 10)
+sample_frac(flights, 0.01)
+```
+The argument `replace = TRUE` samples with replacement, e.g., for a bootstrap sample. The `weight` argument allows you to weight the observations.
+
+The above verbs have a common syntax.  
+
+* the first argument is a data frame (or tibble);  
+* subsequent arguments describe what to do to the data frame;  
+* the result is data frame (or tibble).  
+
+These properties allow the user to form a workflow chain or pipeline with the verbs and other compatible functions.
+
+### 3.1.2 Grouped Operations
+
+#### [Video on Group Operations](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m3/Group.mp4)
+
+These above verbs become very powerful when you apply them to groups of observations within a dataset. In `dplyr`, this is done by the `group_by()` function. It breaks a dataset into specified groups of rows. When you then apply the verbs above on the resulting object they'll be automatically applied "by group". 
+
+We now split the complete dataset into individual planes and then summarise each plane by counting the number of flights ` (count = n())` and computing the average distance `(dist = mean(distance, na.rm = TRUE))` and arrival delay `(delay = mean(arr_delay, na.rm = TRUE))`
+```{r}
+by_tailnum <- group_by(flights, tailnum)
+delay <- summarise(by_tailnum,
+  count = n(),
+  dist = mean(distance, na.rm = TRUE),
+  delay = mean(arr_delay, na.rm = TRUE))
+delay <- filter(delay, count > 20, dist < 2000)
+delay
+```
+We can then see if the average delay is related to the average distance flown by a plane.
+```{r}
+library(ggplot2)
+ggplot(delay, aes(dist, delay)) +
+  geom_point(aes(size = count), alpha = 1/2) +
+  geom_smooth() +
+  scale_size_area()
+```
+The average delay increases for short distance (with a lot of variation), but then levels out.
+
+This course does not focus on graphics, but we will use simple graphics in various workflows. The principal graphics packages that integrate into workflows include:  
+
+* [Grammar of graphics](https://github.com/hadley/ggplot2)  
+
+`ggplot2` is a plotting system for R, based on the Leland Wilkinson's grammar of graphics It takes care of many of the details that make plotting a hassle (like drawing legends) as well as providing a powerful model of graphics that makes it easy to produce complex multi-layered graphics.
+
+* [Interactive grammar of graphics](https://github.com/rstudio/ggvis)  
+
+`ggvis` makes it easy to describe interactive web graphics in R. It combines:
+
+* a grammar of graphics from ggplot2,  
+* reactive programming from shiny, and  
+* data transformation pipelines from dplyr.  
+
+These graphics systems will be covered in BUDA 550 in depth, but you should learn the basics here.
+
+You use `summarise()` with aggregate functions, which take a vector of values and return a single number. There are many useful examples of such functions in base R, e.g., `mean()`, `sum()`, and `sd()`.
+
+`dplyr` adds:  
+
+* `n()`: the number of observations in the current group;
+* `n_distinct(x)`: the number of unique values in `x`;
+* `first(x)`, `last(x)`, and `nth(x, n)`: the first, last, and nth observation in `x`.
+
+You can also use your own functions.
+
+For example, we could use these to find the number of planes and the number of flights that go to each possible destination:
+```{r}
+destinations <- group_by(flights, dest)
+summarise(destinations,
+  planes = n_distinct(tailnum),
+  flights = n()
+)
+```
+
+When you group by multiple variables, each summary peels off one level of the grouping. Thus, you can progressively roll-up a dataset:
+```{r}
+daily <- group_by(flights, year, month, day)
+(per_day   <- summarise(daily, flights = n()))
+(per_month <- summarise(per_day, flights = sum(flights)))
+(per_year  <- summarise(per_month, flights = sum(flights)))
+```
+
+### 3.1.3 Chaining
+
+#### [Video on chaining](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m3/Chaining.mp4)
+
+The `dplyr` API is *functional*, i.e., the function calls don't have *side-effects*. You means that you must always save their results, which doesn't lead to elegant code. You either have to do it step-by-step:
+```{r}
+a1 <- group_by(flights, year, month, day)
+a2 <- select(a1, arr_delay, dep_delay)
+a3 <- summarise(a2,
+  arr = mean(arr_delay, na.rm = TRUE),
+  dep = mean(dep_delay, na.rm = TRUE))
+a4 <- filter(a3, arr > 30 | dep > 30)
+a4
+```
+This is not a good idea for big data.
+
+If you want to save storage, you need to wrap the function calls inside each other:
+```{r}
+filter(
+  summarise(
+    select(
+      group_by(flights, year, month, day),
+      arr_delay, dep_delay
+    ),
+    arr = mean(arr_delay, na.rm = TRUE),
+    dep = mean(dep_delay, na.rm = TRUE)
+  ),
+  arr > 30 | dep > 30
+)
+```
+
+However, this is difficult to read because the order of the operations is from inside to out. Thus, the arguments are a long way away from the function. To get around this problem, `dplyr` provides the `%>%` operator. `x %>% f(y)` turns into `f(x, y)` so you can use it to rewrite multiple operations that you can read left-to-right, top-to-bottom:
+```{r}
+flights %>%
+  group_by(year, month, day) %>%
+  select(arr_delay, dep_delay) %>%
+  summarise(
+    arr = mean(arr_delay, na.rm = TRUE),
+    dep = mean(dep_delay, na.rm = TRUE)
+  ) %>%
+  filter(arr > 30 | dep > 30)
+```
+The `%>%` R operator is somewhat like UNIX pipes in which the standard output of one command becomes the standard input of the next. Thus, we sometimes call `%>%` the R pipe operator.
+
+However, `%>%` is very powerful since it can be used with many R functions including graphics functions in R packages such as `ggplot2` and `ggvis`.
+
+Let's redo our grouped `tailnum` example using `%>%`:
+```{r}
+group_by(flights, tailnum) %>%
+  summarise(
+    count = n(),
+    dist = mean(distance, na.rm = TRUE),
+    delay = mean(arr_delay, na.rm = TRUE)) %>%
+  filter(
+    count > 20, dist < 2000) %>%
+  ggplot(
+    aes(dist, delay)) +
+    geom_point(aes(size = count), alpha = 1/2) +
+    geom_smooth() +
+    scale_size_area()
+```
+What makes this work is that the first argument is a data frame and the output is a data frame. Do you  see the potential of building very powerful workflows?
+
+### 3.1.4 Other data sources
+
+#### [Video on other data sources](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m3/DataSources.mp4)
+
+The flexibility of this approach extends well beyond small data. `dplyr` works with data that is stored in other ways, e.g., data tables, databases, and multidimensional arrays.
+
+#### Data table
+
+`dplyr` also provides [data table](https://github.com/Rdatatable/data.table/wiki) methods for all verbs through [dtplyr](https://github.com/hadley/dtplyr). If you're using `data.table` already this lets you to use `dplyr` syntax for data manipulation, and `data.table` for everything else. The R `data.table` package provides an in-memory columnar structure for big data.
+
+For multiple operations, `data.table` can be faster because you usually use it with multiple verbs simultaneously. For example, with data table you can do a `mutate` and a `select` in a single step. It's smart enough to know that there's no point in computing the new variable for rows you're about to throw away.
+
+#### Databases
+
+`dplyr` allows you to use the same verbs with a remote database. It takes care of generating SQL for you so that you can avoid the cognitive challenge of constantly switching between languages.
+
+The material for this subsection is taken from Hadley Wickham's [dplyr Database Vignette](https://github.com/hadley/dplyr/blob/master/vignettes/databases.Rmd).
+
+The reason you'd want to use `dplyr` with a database is because either:  
+
+* your data is already in a database, or  
+* you have so much data that it does not fit in memory and you have to use a database.
+
+Currently `dplyr` supports the three most popular open source databases (`sqlite`, `mysql` and `postgresql`), and Google's `bigquery`. We will focus on `postgreSQL` since it provides much stronger support for `dplyr`.
+
+If you have a lot of data in a database, you can't just dump it into R due to memory limitations. Instead, you'll have to work with subsets or aggregates. `dplyr` generally make this task easy.
+
+The goal of `dplyr` is not to replace every SQL function with an R function; that would be difficult and error prone. Instead, `dplyr` only generates `SELECT` statements, the SQL you write most often as an analyst for data extraction.
+
+```{r}
+# my_dbh is a handle to the gofirstsql database
+my_dbh <- src_postgres("gofirstsql")
+
+# The following statement was run initially to put flights in the gofirstsql database
+# flights_pg <- copy_to(my_dbh, flights, temporary=FALSE)
+
+# tbl creates a table from a data source---in this case the database handle to gofirstsql
+flights_pg <- tbl(my_dbh, "flights")
+flights_pg
+```
+You can use SQL:
+```{r}
+flights_out <- tbl(my_dbh, sql("SELECT * FROM flights"))
+```
+
+You use the five verbs:
+```{r}
+select(flights_pg, year:day, dep_delay, arr_delay)
+filter(flights_pg, dep_delay > 240)
+# The comments below are only used to shorten the output.
+# arrange(flights_pg, year, month, day)
+# mutate(flights_pg, speed = air_time / distance)
+# summarise(flights_pg, delay = mean(dep_time))
+```
+The expressions in `select()`, `filter()`, `arrange()`, `mutate()`, and `summarise()` are translated into SQL so they can be run on the database.
+
+Workflows can be constructed by the `%>%` operator:
+```{r}
+output <-
+  filter(flights_pg, year == 2013, month == 1, day == 1) %>%
+  select( year, month, day, carrier, dep_delay, air_time, distance) %>%
+  mutate(speed = distance / air_time * 60) %>%
+  arrange(year, month, day, carrier)
+collect(output)
+```
+This sequence of operations never actually touches the database. It's not until you ask for the data that `dplyr` generates the SQL and requests the results from the database. `collect()` pulls down all the results and returns a `tbl_df()`.
+
+How the database execute the query is given by `explain()`:
+```{r}
+explain(output)
+```
+
+There are three ways to force the computation of a query:  
+
+* `collect()` executes the query and returns the results to R.  
+* `compute()` executes the query and stores the results in a temporary table in the database.  
+* `collapse()` turns the query into a table expression.
+
+`dplyr` uses the `translate_sql()` function to convert R expressions into SQL:
+```{r}
+translate_sql(sin(x) + tan(y))
+translate_sql(x < 5 & !(y >= 5))
+translate_sql(first %in% c("John", "Roger", "Robert"))
+translate_sql(like == 7)
+```
+
+PostgreSQL is much more powerful database than SQLite. It has:  
+
+* a much wider range of built-in functions  
+* support for window functions, which allow grouped subsets and mutates to work.  
+
+We can perform grouped `filter` and `mutate` operations with PostgreSQL. Because you can't filter on *window functions* directly, the SQL generated from the grouped filter is quite complex; so they instead have to go in a subquery.
+```{r}
+daily <- group_by(flights_pg, year, month, day)
+
+# Find the most and least delayed flight each day
+bestworst <- daily %>% 
+  select(flight, arr_delay) %>% 
+  filter(arr_delay == min(arr_delay) || arr_delay == max(arr_delay))
+collect(bestworst)
+explain(bestworst)
+
+# Rank each flight within a daily
+ranked <- daily %>% 
+  select(arr_delay) %>% 
+  mutate(rank = rank(desc(arr_delay)))
+collect(ranked)
+explain(ranked)
+```
+
+#### Spark
+
+The use of Spark as a data source for `dplyr` was introduced in Module 1 with the following code. 
+```{r}
+library(sparklyr)
+sc <- spark_connect(master = "yarn-client")
+
+# Copy to Spark
+faithful_tbl <- copy_to(sc, faithful)
+
+# List the available tables
+src_tbls(sc)
+
+faithful_tbl %>% select(eruptions)
+faithful_tbl %>% filter(waiting < 50)
+
+spark_disconnect(sc)
+```
+This is a demonstration of getting the `faithful` data into Spark and the use of simple data manipulations on the data.
+
+The `sparklyr` package is the basis for data manipulation and machine learning based on a data frame workflow. This approach has limitations, e.g., with graph algorithms, but it covers most use cases. The `rsparkling` package with its support for `h2o` delves even deeper into machine learning, e.g., deep learning.
+
+An alternative approach, officially supported by Spark, is the `SparkR` package. In particular, R has become a first-class Spark citizen and is now built into Spark. These developments will be discussed further in Module 6.
+
+#### Multidimensional arrays / cubes
+
+`tbl_cube()` provides an experimental interface to multidimensional arrays or data cubes. Potentially this could be used for deep learning algorithms, e.g., see [TensorFlow](https://www.tensorflow.org).
+
+TensorFlow is an open source software library for numerical computation using data flow graphs. Nodes in the graph represent mathematical operations, while the graph edges represent the multidimensional data arrays (tensors) communicated between them.
+
+### 3.1.5 `dplyr` Summary
+
+Compared to all existing options, `dplyr`:  
+
+* abstracts away how your data is stored, so that you can work with data frames, data tables and remote databases using the same set of functions. This lets you focus on what you want to achieve, not on the logistics of data storage.  
+* provides a default `print()` method that doesn't automatically print all the data to the screen.  
+
+Compared to base functions `dplyr` is:  
+
+* much more consistent, i.e., functions have the same interface. So once you've mastered one, you can easily pick up the others.    
+* based around data frames (rather than vectors).  
+
+## 3.2 Combining Tables
+
+#### [Video on combining tables](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m3/CombiningTables.mp4)
+
+It's rare that a data analysis involves only a single table of data. In practice, you'll normally have many tables that contribute to an analysis, and you need flexible tools to combine them. 
+
+The material for this section is extracted from Hadley Wickham's [dplyr Two-table Vignette](https://github.com/hadley/dplyr/blob/master/vignettes/two-table.Rmd).
+
+
+In `dplyr`, there are three families of verbs that work with two tables at a time:  
+
+* Mutating joins, which add new variables to one table from matching rows in another.  
+* Filtering joins, which filter observations from one table based on whether or not they match an observation in the other table.  
+* Set operations, which combine the observations in the data sets as if they were set elements.  
+
+This discussion assumes that you have tidy data, where the rows are observations and the columns are variables (see Section 3.2).
+
+All two-table verbs work similarly. The first two arguments are `x` and `y`, and provide the tables to combine. The output is always a new table with the same type as `x`
+
+### 3.2.1 Mutating joins
+
+Mutating joins allow you to combine variables from multiple tables. For example, take the `nycflights13` data. In one table we have flight information with an abbreviation for carrier, and in another we have a mapping between abbreviations and full names. You can use a join to add the carrier names to the flight data:
+```{r}
+library("nycflights13")
+# Drop unimportant variables so it's easier to understand the join results.
+flights2 <- flights %>% select(year:day, hour, origin, dest,
+                               tailnum, carrier)
+airlines
+
+flights2 %>% 
+  left_join(airlines)
+```
+
+#### Controlling how the tables are matched
+
+In addition to `x` and `y`, each mutating join takes an argument `by` that controls which variables are used to match observations in the two tables. There are several ways to specify it.
+
+* `NULL`, the default. `dplyr` will will use all variables that appear in both tables, a natural join. For example, the flights and weather tables match on their common variables: year, month, day, hour and origin.  
+```{r}
+weather
+flights2 %>% left_join(weather)
+```
+
+* A character vector, `by = "x"`. Like a natural join, but uses only some of the common variables. For example, flights and planes have year columns, but they mean different things so we only want to join by `tailnum`.
+```{r}
+flights2 %>% left_join(planes, by = "tailnum")
+```
+Note that the year columns in the output are disambiguated with a suffix.
+
+* A named character vector: `by = c("x" = "a")`. This will match variable `x` in table `x` to variable `a` in table `b`. The variables from use will be used in the output.
+
+Each flight has an origin and destination airport, so we need to specify which one we want to join to:
+```{r}
+flights2 %>% left_join(airports, c("dest" = "faa"))
+flights2 %>% left_join(airports, c("origin" = "faa"))
+```
+
+#### Types of join
+
+There are four types of mutating join, which differ in their behavior when a match is not found. We'll illustrate each with a simple example:
+```{r}
+(df1 <- data_frame(x = c(1, 2), y = 2:1))
+(df2 <- data_frame(x = c(1, 3), a = 10, b = "a"))
+```
+`inner_join(x, y)` only includes observations that match in both `x` and `y`.
+```{r}
+df1 %>% inner_join(df2) %>% knitr::kable()
+```
+
+`left_join(x, y)` includes all observations in `x`, regardless of whether they match or not. This is the most commonly used join because it ensures that you don't lose observations from your primary table.
+```{r}
+df1 %>% left_join(df2)
+```
+
+`right_join(x, y)` includes all observations in `y`. It's equivalent to `left_join(y, x)`, but the columns will be ordered differently.
+```{r}
+df1 %>% right_join(df2)
+df2 %>% left_join(df1)
+```
+
+`full_join()` includes all observations from `x` and `y`.
+
+```{r}
+df1 %>% full_join(df2)
+```
+The left, right and full joins are collectively know as outer joins. When a row doesn't match in an outer join, the new variables are filled in with missing values.
+
+#### Observations
+
+While mutating joins are primarily used to add new variables, they can also generate new observations. If a match is not unique, a join will add all possible combinations (the Cartesian product) of the matching observations:
+```{r}
+df1 <- data_frame(x = c(1, 1, 2), y = 1:3)
+df2 <- data_frame(x = c(1, 1, 2), z = c("a", "b", "a"))
+
+df1 %>% left_join(df2)
+```
+
+#### Filtering joins
+
+Filtering joins match observations in the same way as mutating joins, but affect the observations, not the variables. There are two types:  
+
+* semi_join(x, y) keeps all observations in x that have a match in y.  
+* anti_join(x, y) drops all observations in x that have a match in y.  
+
+These are most useful for diagnosing join mismatches. For example, there are many flights in the `nycflights13` dataset that don't have a matching tail number in the planes table:
+```
+library("nycflights13")
+flights %>% 
+  anti_join(planes, by = "tailnum") %>% 
+  count(tailnum, sort = TRUE)
+```
+
+If you're worried about what observations your joins will match, start with a `semi_join()` or `anti_join()`. `semi_join()` and `anti_join()` never duplicate; they only remove observations.
+```{r}
+df1 <- data_frame(x = c(1, 1, 3, 4), y = 1:4)
+df2 <- data_frame(x = c(1, 1, 2), z = c("a", "b", "a"))
+
+# Four rows to start with:
+df1 %>% nrow()
+# And we get four rows after the join
+df1 %>% inner_join(df2, by = "x") %>% nrow()
+df1 %>% inner_join(df2, by = "x")
+# But only two rows actually match
+df1 %>% semi_join(df2, by = "x") %>% nrow()
+df1 %>% semi_join(df2, by = "x")
+```
+
+#### Set operations
+
+The final type of two-table verb is set operations. These expect the x and y inputs to have the same variables, and treat the observations like sets:  
+
+* `intersect(x, y)`: return only observations in both `x` and `y`  
+* `union(x, y)`: return unique observations in `x` and `y`  
+* `setdiff(x, y)`: return observations in `x`, but not in `y`.  
+
+Given this simple data:
+```{r}
+(df1 <- data_frame(x = 1:2, y = c(1L, 1L)))
+(df2 <- data_frame(x = 1:2, y = 1:2))
+```
+
+The four possibilities are:
+```{r}
+intersect(df1, df2)
+# Note that we get 3 rows, not 4
+union(df1, df2)
+setdiff(df1, df2)
+setdiff(df2, df1)
+```
+
+#### Databases
+
+Each two-table verb has a straightforward SQL equivalent. The correspondences between R and SQL are:  
+
+* `inner_join()`:	`SELECT * FROM x JOIN y ON x.a = y.a`  
+* `left_join()`:	`SELECT * FROM x LEFT JOIN y ON x.a = y.a`  
+* `right_join()`:	`SELECT * FROM x RIGHT JOIN y ON x.a = y.a`  
+* `full_join()`:	`SELECT * FROM x FULL JOIN y ON x.a = y.a`  
+* `semi_join()`:	`SELECT * FROM x WHERE EXISTS (SELECT 1 FROM y WHERE x.a = y.a)`  
+* `anti_join()`:	`SELECT * FROM x WHERE NOT EXISTS (SELECT 1 FROM y WHERE x.a = y.a)`  
+* `intersect(x, y)`:	`SELECT * FROM x INTERSECT SELECT * FROM y`  
+* `union(x, y)`:	`SELECT * FROM x UNION SELECT * FROM y`  
+* `setdiff(x, y)`: `SELECT * FROM x EXCEPT SELECT * FROM y`  
+
+`x` and `y` don't have to be tables in the same database. If you specify `copy = TRUE`, `dplyr` will copy the `y` table into the same location as the `x` variable. This is useful if you've downloaded a summarized dataset and determined a subset for which you now want the full data.
+
+You should review the coercion rules, e.g., factors are preserved only if the levels match exactly and if their levels are different the factors are coerced to character.
+
+At this time, `dplyr` does not provide any functions for working with three or more tables.
+
+See the complete set of vignettes on the `dplyr` repo for other examples.
+
+## 3.3 Data Cleaning with `tidyr`
+
+#### [Video on tidy data](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m3/TidyData.mp4)
+
+In order for `dplyr` to work the data must be *tidy*, i.e., it must be structured as a data frame with certain characteristics.
+
+This section extracts text and code from Hadley's Wickham's vignette for the `tidyr` package. Click on the link to his repo for his [tidyr package](https://github.com/hadley/tidyr) to find the [tidyr Tidy-data Vignette](https://github.com/hadley/tidyr/blob/master/vignettes/tidy-data.Rmd). For your convenience, the file for the vignette and the required data sets are in this module directory. More detailed discussions are given in his [tidy data](http://vita.had.co.nz/papers/tidy-data.html) paper.
+
+Hadley states that 80% of data analysis is spent on the cleaning and preparing data. Further, it must be repeated many times over the course of analysis as new problems come to light or new data is collected. His vignette and paper focuses on an important aspect of data cleaning: *data tidying*, i.e., structuring datasets to facilitate analysis.
+
+The principles of tidy data provide a standard way to organize data values within a dataset. The *tidy data standard* has been designed to:    
+
+* facilitate initial exploration and analysis of the data, and  
+* simplify the development of data analysis tools, e.g., `dplyr` and `ggplot`, that work well together.  
+
+Current tools often require translation, i.e., you have to spend time *munging* the output from one tool so you can input it into another. Tidy datasets and tidy tools work hand in hand to make data analysis easier, allowing you to focus on the interesting domain problem, not on the uninteresting logistics of data.
+
+#### Data structure
+
+Most *statistical datasets* are data frames made up of rows and columns. The columns are almost always labeled and the rows are sometimes labeled. The following code provides some data about an imaginary experiment in a format commonly seen.
+```{r}
+preg <- read.csv("preg.csv", stringsAsFactors = FALSE)
+preg
+```
+
+There are many ways to structure the same underlying data. The following table shows the same data as above, but the rows and columns have been transposed.
+```{r}
+read.csv("preg2.csv", stringsAsFactors = FALSE)
+```
+
+In both cases, the data is not tidy!
+
+#### Data semantics
+
+A *dataset* is a collection of values, usually either numbers (if *quantitative*) or strings (if *qualitative*). Values are organised in two ways. Every value belongs to:    
+
+* A *variable*, which contains all values that measure the same underlying attribute (like height, temperature, or duration) across units;    
+* An *observation*, which contains all values measured on the same unit (like a person, day, or race) across attributes.  
+
+A tidy version of the pregnancy data looks like this:
+```{r}
+library(tidyr)
+preg2 <- preg %>% 
+  gather(treatment, n, treatmenta:treatmentb) %>%
+  mutate(treatment = gsub("treatment", "", treatment)) %>%
+  arrange(name, treatment)
+preg2
+```
+`gather()` takes multiple columns and collapses into *key-value pairs*, duplicating all other columns as needed. You use `gather()` when you notice that you have columns that are not variables.
+
+This makes the values, variables and observations more clear. The dataset contains 18 values representing three variables and six observations. The variables are:  
+
+1. `name`, with three possible values (`Jane`, `John`, and `Mary`).  
+2. `treatment`, with two possible values (`a` and `b`).  
+3. `n`, with five or six values depending on how you think of the missing value `(1, 4, 6, 7, 18, NA)`.
+
+The *experimental design* tells us more about the structure of the observations. In this experiment, every combination of of name and treatment was measured, a *completely crossed design*. The experimental design also determines whether or not *missing values* can be safely dropped. There are two types of missing values:  
+
+* *simple missing values* represent observations that should have been made, but were not, so it’s important to keep them.  
+* *structural missing values* represent measurements that can’t be made (e.g., the count of pregnant males), so they can be safely removed.  
+
+A general rule of thumb is that it is easier:    
+
+* to describe functional relationships among variables (e.g., z is a linear combination of x and y, density is the ratio of weight to volume) than between rows, and  
+* to make comparisons between groups of observations (e.g., average of group a vs. average of group b) than between groups of columns.  
+
+In a given analysis, there may be multiple levels of observation. For example, in a trial of new allergy medication we might have three observational types:  
+
+* demographic data collected from each person (age, sex, race),  
+* medical data collected from each person on each day (number of sneezes, redness of eyes), and  
+* meteorological data collected on each day (temperature, pollen count).  
+
+Variables may change over the course of analysis. Often the variables in the raw data are very *fine grained*, and may add extra modelling complexity for little explanatory gain. For example, many *surveys* ask variations on the same question to better get at an underlying *trait*. Thus,:  
+
+* in early stages of analysis variables correspond to questions; whereas, 
+* in later stages variables correspond to traits, computed by averaging together multiple questions or by doing a *principal component analysis*.  
+
+This considerably simplifies analysis because you don’t need a *hierarchical model*, and you can often pretend that the data is *continuous*, not *discrete*.
+
+#### Tidy data
+
+Tidy data is a standard way of mapping the meaning of a dataset to its structure. A dataset is *messy or tidy* depending on how *rows, columns and tables are matched up with observations, variables and types*. In *tidy data*:  
+
+* Each variable forms a column.  
+* Each observation forms a row.  
+* Each type of observational unit forms a table.  
+
+This is *Codd’s 3rd normal form*, but with the constraints framed in statistical language, and the focus put on a single dataset rather than the many connected datasets common in relational databases. *Messy data* is any other other arrangement of the data.
+
+Tidy data makes it easy for an analyst or a computer to extract needed variables because it provides a standard way of structuring a dataset. Compare the different versions of the pregnancy data: in the messy version you need to use different strategies to extract different variables. This slows analysis and invites errors.
+
+Many data analysis operations involve all of the values in a variable, e.g., every aggregation function. It is important to extract these values in a simple, standard way. Tidy data is particularly well suited for *vectorized* programming languages like R, because the layout ensures that values of different variables from the same observation are always paired.
+
+While the order of variables and observations does not affect analysis, a good ordering makes it easier to scan the raw values. One way of organizing variables is by their role in the analysis:
+
+* are values *fixed* by the design of the data collection, or
+* are they *measured* during the course of the experiment?
+
+*Fixed variables* describe the *experimental design* and are known in advance. Computer scientists often call fixed variables *dimensions*, and statisticians usually denote them with subscripts on *random variables*.
+
+*Measured variables* are what we actually measure in the study. Fixed variables should come first, followed by measured variables, each ordered so that related variables are contiguous. Rows can then be ordered by the major fixed variable, breaking ties with the second and subsequent (fixed) variables.
+
+### 3.3.1 Tidying messy datasets
+
+#### [Video on tidying messy datasets](http://www.stat.wvu.edu/~jharner/courses/buda515/videos/m3/MessyData.mp4)
+
+This section describes the five most common problems with messy datasets, along with their remedies:   
+
+* Column headers are values, not variable names.  
+* Multiple variables are stored in one column.  
+* Variables are stored in both rows and columns.  
+* Multiple types of observational units are stored in the same table.  
+* A single observational unit is stored in multiple tables.  
+
+Surprisingly, most messy datasets, including types of messiness not explicitly described above, can be tidied with a small set of tools: gathering, separating and spreading. 
+
+#### Column headers are values, not variable names
+
+A common type of messy dataset is tabular data designed for presentation, where variables form both the rows and columns, and column headers are values, not variable names. Although this arrangement is messy, in some cases it can be extremely useful. It provides efficient storage for completely crossed designs, and it can lead to extremely efficient computation if desired operations can be expressed as matrix operations. For example, it may be a representation of a contingency table, which can be decomposed directly as a matrix.
+
+The following dataset explores the relationship between income and religion in the US. It comes from a report produced by the Pew Research Center, an American think-tank that collects data on attitudes to topics ranging from religion to the internet, and produces many reports that contain datasets in this format.
+```{r}
+pew <- tbl_df(read.csv("pew.csv", stringsAsFactors = FALSE,
+                       check.names = FALSE))
+pew
+```
+
+This dataset has three variables: `religion`, `income` and `frequency`.
+
+To tidy it, we need to gather the non-variable columns into a two-column key-value pair. This action is often described as making a wide dataset long (or tall), but I’ll avoid those terms because they’re imprecise.
+
+When gathering variables, we need to provide the name of the new key-value columns to create. The first argument, is the name of the key column, which is the name of the variable defined by the values of the column headings. In this case, it’s `income`. The second argument is the name of the value column, `frequency`. The third argument defines the columns to gather, here, every column except religion.
+```{r}
+pew %>%
+  gather(income, frequency, -religion)
+```
+This form is tidy because each column represents a variable and each row represents an observation, in this case a demographic unit corresponding to a combination of religion and income.
+
+This format is also used to record regularly spaced observations over time. For example, the Billboard dataset shown below records the date a song first entered the billboard top 100. It has variables for artist, track, date.entered, rank and week. The rank in each week after it enters the top 100 is recorded in 75 columns, wk1 to wk75. This form of storage is not tidy, but it is useful for data entry. It reduces duplication since otherwise each song in each week would need its own row, and song metadata like title and artist would need to be repeated. This will be discussed in more depth in multiple types.
+```{r}
+billboard <- tbl_df(read.csv("billboard.csv", stringsAsFactors = FALSE))
+billboard
+```
+
+To tidy this dataset, we first gather together all the wk columns. The column names give the week and the values are the ranks:
+```{r}
+billboard2 <- billboard %>% 
+  gather(week, rank, wk1:wk76, na.rm = TRUE)
+billboard2
+```
+
+Here we use `na.rm` to drop any missing values from the gather columns. Here, missing values represent weeks that the song wasn’t in the charts, which can be safely dropped.
+
+In this case it’s also nice to do a little cleaning, converting the week variable to a number, and figuring out the date corresponding to each week on the charts:
+```{r}
+billboard3 <- billboard2 %>%
+  mutate(
+    week = extract_numeric(week),
+    date = as.Date(date.entered) + 7 * (week - 1)) %>%
+  select(-date.entered)
+billboard3
+```
+
+Finally, it’s always a good idea to sort the data. We could do it by artist, track and week:
+```{r}
+billboard3 %>% arrange(artist, track, week)
+```
+
+#### Multiple variables stored in one column
+
+After gathering columns, the key column is sometimes a combination of multiple underlying variable names. This happens in the `tb` (tuberculosis) dataset, shown below. This dataset comes from the World Health Organisation, and records the counts of confirmed tuberculosis cases by country, year, and demographic group. The demographic groups are broken down by sex (m, f) and age (0-14, 15-25, 25-34, 35-44, 45-54, 55-64, unknown).
+```{r}
+tb <- tbl_df(read.csv("tb.csv", stringsAsFactors = FALSE))
+tb
+```
+
+First we gather up the non-variable columns:
+```{r}
+tb2 <- tb %>% 
+  gather(demo, n, -iso2, -year, na.rm = TRUE)
+tb2
+```
+
+Column headers in this format are often separated by a non-alphanumeric character (e.g. ., -, _, :), or have a fixed width format, like in this dataset. `separate()` makes it easy to split a compound variables into individual variables. You can either pass it a regular expression to split on (the default is to split on non-alphanumeric columns), or a vector of character positions. In this case we want to split after the first character:
+```{r}
+tb3 <- tb2 %>% 
+  separate(demo, c("sex", "age"), 1)
+tb3
+```
+
+Storing the values in this form resolves a problem in the original data. We want to compare rates, not counts, which means we need to know the population. In the original format, there is no easy way to add a population variable. It has to be stored in a separate table, which makes it hard to correctly match populations to counts. In tidy form, adding variables for population and rate is easy because they’re just additional columns.
+
+#### Variables are stored in both rows and columns
+
+The most complicated form of messy data occurs when variables are stored in both rows and columns. The code below loads daily weather data from the Global Historical Climatology Network for one weather station (`MX17004`) in Mexico for five months in 2010.
+```{r}
+weather <- tbl_df(read.csv("weather.csv", stringsAsFactors = FALSE))
+weather
+```
+
+It has variables in individual columns (`id`, `year`, `month`), spread across columns (`day`, `d1-d31`) and across rows (`tmin`, `tmax`) (minimum and maximum temperature). Months with fewer than 31 days have structural missing values for the last day(s) of the month.
+
+To tidy this dataset we first gather the day columns:
+```{r}
+weather2 <- weather %>%
+  gather(day, value, d1:d31, na.rm = TRUE)
+weather2
+```
+
+For presentation, I’ve dropped the missing values, making them implicit rather than explicit. This is ok because we know how many days are in each month and can easily reconstruct the explicit missing values.
+
+We’ll also do a little cleaning:
+```{r}
+weather3 <- weather2 %>% 
+  mutate(day = extract_numeric(day)) %>%
+  select(id, year, month, day, element, value) %>%
+  arrange(id, year, month, day)
+weather3
+```
+
+This dataset is mostly tidy, but the element column is not a variable; it stores the names of variables. (Not shown in this example are the other meteorological variables `prcp` (precipitation) and `snow` (snowfall)). Fixing this requires the `spread` operation. This performs the inverse of gathering by spreading the element and value columns back out into the columns:
+```{r}
+weather3 %>%
+  spread(element, value)
+```
+
+#### Multiple types in one table
+
+Datasets often involve values collected at multiple levels, on different types of observational units. During tidying, each type of observational unit should be stored in its own table. This is closely related to the idea of database normalization, where each fact is expressed in only one place. It’s important because otherwise inconsistencies can arise.
+
+The billboard dataset actually contains observations on two types of observational units: the song and its rank in each week. This manifests itself through the duplication of facts about the song: `artist`, `year` and `time` are repeated many times.
+
+This dataset needs to be broken down into two pieces: a song dataset which stores artist, song name and time, and a ranking dataset which gives the rank of the song in each week. We first extract a `song` dataset:
+```{r}
+song <- billboard3 %>% 
+  select(artist, track, year, time) %>%
+  unique() %>%
+  mutate(song_id = row_number())
+song
+```
+
+Then use that to make a `rank` dataset by replacing repeated song facts with a pointer to song details (a unique song id):
+```{r}
+rank <- billboard3 %>%
+  left_join(song, c("artist", "track", "year", "time")) %>%
+  select(song_id, date, week, rank) %>%
+  arrange(song_id, date)
+rank
+```
+
+You could also imagine a `week` dataset which would record background information about the week, maybe the total number of songs sold or similar “demographic” information.
+
+Normalization is useful for tidying and eliminating inconsistencies. However, there are few data analysis tools that work directly with relational data, so analysis usually also requires denormalization or merging the datasets back into one table.
+
+#### One type in multiple tables
+
+It’s also common to find data values about a single type of observational unit spread out over multiple tables or files. These tables and files are often split up by another variable, so that each represents a single year, person, or location. As long as the format for individual records is consistent, this is an easy problem to fix:  
+
+1. Read the files into a list of tables.  
+2. For each table, add a new column that records the original file name (the file name is often the value of an important variable).  
+3. Combine all tables into a single table.  
+
+`plyr` (not `dplyr`) makes this straightforward in R. The following code generates a vector of file names in a directory (data/) which match a regular expression (ends in .csv). Next we name each element of the vector with the name of the file. We do this because it preserves the names in the following step, ensuring that each row in the final data frame is labeled with its source. Finally, `ldply()` loops over each path, reading in the csv file and combining the results into a single data frame.
+```{r}
+library(plyr)
+paths <- dir("data", pattern = "\\.csv$", full.names = TRUE)
+names(paths) <- basename(paths)
+ldply(paths, read.csv, stringsAsFactors = FALSE)
+```
+
+Once you have a single table, you can perform additional tidying as needed. An example of this type of cleaning is the baby-name data which takes 129 yearly [baby name tables](https://github.com/hadley/data-baby-names) provided by the US Social Security Administration and combines them into a single file.
+
+A more complicated situation occurs when the dataset structure changes over time. For example, the datasets may contain different variables, the same variables with different names, different file formats, or different conventions for missing values. This may require you to tidy each file to individually (or, if you’re lucky, in small groups) and then combine them once tidied. An example of this type of tidying is illustrated in EPA [fuel economy data](https://github.com/hadley/data-fuel-economy) for over 50,000 cars from 1978 to 2008. The raw data is available online, but each year is stored in a separate file and there are four major formats with many minor variations, making tidying this dataset a considerable challenge.
+
+## Learning Activities
+
+Assignment 3 will be sent as a separate file. This is an individual assignment.
+
+## Assessments
+
+Quiz 3 will be sent as a separate file.
+
+## Discussion Questions
+
+1. Why is the structuring of data to tidy form so important? How does it relate to storing data, e.g., by XML or JSON?  
+
+2. Why is the `dplyr` workflow so powerful? Contrast this with the data munging typically required for other less formalized data inputs and outputs for various sequences of tools.  
+
+3. Would it be possible to build a workflow using `*.csv` or key-value files and UNIX pipes?  
+
+## Reading Assignments
+
+[R for Data Science](http://r4ds.had.co.nz), Garrett Grolemund and Hadley Wickham, O'Reilly. Chapters 5, 10, 11, 12, 13, 18.
+
+[Advanced R](http://adv-r.had.co.nz/), Hadley Wickham, CRC Press, Chapter 10 (Functional Programming). 
+
+[Tidy Data](http://vita.had.co.nz/papers/tidy-data.html), Hadley Wickham, Journal of Statistical Software, **59**, issue 10.
+
+[Introduction to dplyr Vignette](https://github.com/hadley/dplyr/blob/master/vignettes/introduction.Rmd), by Hadley Wickham.
+
+[dplyr Database Vignette](https://github.com/hadley/dplyr/blob/master/vignettes/databases.Rmd), by Hadley Wickham.
+
+[dplyr Two-table Vignette](https://github.com/hadley/dplyr/blob/master/vignettes/two-table.Rmd), by Hadley Wickham.
+
+[tidyr Tidy-data Vignette](https://github.com/hadley/tidyr/blob/master/vignettes/tidy-data.Rmd), by Hadley Wickham.

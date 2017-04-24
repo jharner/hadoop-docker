@@ -1,0 +1,28 @@
+---
+title: "Module 3: Data Transformation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# install.package("nycflights13", "readxl")
+```
+
+## Overview
+
+This module develops a grammar of data manipulation for statistical tables---not unlike SQL for databases. The verbs for this data manipulation are presented for single tables and two tables. The normalization of tables is called data tidying and is introduced.
+
+## Objectives
+
+By the end or this module, students will be able to:
+
+1. Use the grammar of data manipulation with real data sets;  
+2. Abstract the data source;  
+3. Apply single-table verbs to the rows and columns of a data frame;  
+4. Apply these verbs to grouped observations in a data set;  
+5. Chain functions to develop workflows, including data manipulation, analysis, and graphics;  
+6. Extract data from databases, including distributed databases;  
+7. Combine tables with two-table verbs;  
+8. Clean data based on data structure and semantics;  
+

@@ -1,0 +1,225 @@
+---
+title: 'Chapter 9: Data Processing'
+author: "jharner"
+date: "April 3, 2016"
+output: html_document
+---
+
+## Section 9.9 Text processing
+
+This section is focused solely on data manipulation techniques for working with vectors containing character values. We must be able to:  
+* manipulate text:  
+* convert a data set from one text format to another;  
+* search for and extract important keywords or specific patterns of characters from within a large set of text.
+
+### 9.9.1 Case study: The longest placename
+
+One of the longest placenames in the world is attributed to a hill in the Hawke’s Bay region of New Zealand. The name (in Maori) is:
+Taumatawhakatangihangakoauauotamateaturipukakapikimaungahoronukupokaiwhenuakitanatahu
+... which means “The hilltop where Tamatea with big knees, conqueror of mountains, eater of land, traveler over land and sea, played his koauau [flute] to his beloved.”
+
+Children at an Auckland primary school were given a homework assignment that included counting the number of letters in this name. This task of counting the number of characters in a piece of text is a simple example of what we will call **text processing**.
+
+We use the `scan()` function to read the name into R, as a character vector of length 1.
+```{r text}
+placename <- scan("placename.txt", what="character")
+placename
+```
+The first argument provides the name and location of the file and the second argument specifies what sort of data type is in the file.
+
+We can now use the `nchar()` function to count the number of characters in this text.
+```{r}
+nchar(placename)
+```
+
+In Maori, the combinations ‘ng’ and ‘wh’ can be treated as a single letter. Given this, how many letters are in the placename?
+
+We could try counting all of the ‘ng’s and ‘wh’s as single letters by searching through the text and converting all of them into single characters and then redoing the count. In R, we can perform this search-and-replace task using the `gsub()` function. This function takes three arguments: a pattern to search for, a replacement value, and the text to search within.
+```{r}
+replacengs <- gsub("ng", "_", placename)
+replacengs
+replacewhs <- gsub("wh", "_", replacengs)
+replacewhs
+nchar(replacewhs)
+```
+
+An alternative approach involves just finding out how many ‘ng’s and ‘wh’s are in the text and subtracting that number from the original count. The function `gregexpr()` returns all of the matches within a piece of text.
+
+This function takes two arguments: a pattern to search for and the text to search within. The result is a vector of the starting positions of the pattern within the text, with an attribute that gives the lengths of each match.
+```{r}
+ngmatches <- gregexpr("ng", placename)[[1]]
+ngmatches
+```
+This result shows that the pattern ‘ng’ occurs three times in the placename, starting at character positions 15, 20, and 54, respectively, and that the length of the match is 2 characters in each case.
+
+```{r}
+whmatches <- gregexpr("wh", placename)[[1]]
+whmatches
+```
+The return value of `gregexpr()` is a list to allow for more than one piece of text to be searched at once. In this case, we are only searching a single piece of text, so we just need the first component of the result.
+
+We can use the `length()` function to count how many matches there were in the text.
+```{r}
+length(ngmatches)
+length(whmatches)
+nchar(placename) - (length(ngmatches) + length(whmatches))
+```
+
+For the final question in the homework assignment, the students had to count how many times each letter appeared in the placename (treating ‘wh’ and ‘ng’ as separate letters again).
+
+One way to do this in R is by breaking the placename into individual characters and creating a table of counts. The `strsplit()` function performs this task. It takes two arguments: the text to break up and a pattern which is used to decide where to split the text. If we give the value `NULL` as the second argument, the text is split at each character.
+```{r}
+nameLetters <- strsplit(placename, NULL)[[1]]
+nameLetters
+```
+The result is a list to allow for breaking up multiple pieces of text at once.
+
+One minor complication is that we want the uppercase ‘T’ to be counted as a lowercase ‘t’. The function `tolower()` performs this task.
+```{r}
+lowerNameLetters <- tolower(nameLetters)
+lowerNameLetters
+```
+
+Call the `table` function to produce a table of counts of the letters.
+```{r}
+letterCounts <- table(lowerNameLetters)
+letterCounts
+```
+
+The `paste()` function can be used to:  
+* combine separate character vectors;  
+* to combine the character values within a single character vector.  
+
+The `collapse` argument specifies that the character vector should be collapsed into a single character value with, in this case (`collapse=""`),
+```{r}
+nameLetters
+paste(nameLetters, collapse="")
+```
+
+### 9.9.2 Regular expressions
+
+How do we convert all occurrences of ‘ng’ and ‘wh’ to underscore characters in a single step? 
+
+Converting both ‘ng’ and ‘wh’ to underscores in a single step is achieved as follows:
+```{r regexpr}
+gsub("ng|wh", "_", placename)
+```
+The **regular expression** we are using, `ng|wh`, describes a pattern: the character ‘n’ followed by the character ‘g’ or the character ‘w’ followed by the character ‘h’. The vertical bar, `|`, is a **metacharacter**.
+
+A match will occur if the text contains either the pattern to the left of the vertical bar or the pattern to the right of the vertical bar. The characters ‘n’, ‘g’, ‘w’, and ‘h’ are all **literals**.
+
+A regular expression consists of a mixture of **literal** characters, which have their normal meaning, and **metacharacters**, which have a special meaning. The combination describes a **pattern** that can be used to find matches amongst text values.
+
+A regular expression may be as simple as a literal word, such as `cat`, but regular expressions can also be quite complex and express sophisticated ideas, such as `[a-z]{3,4}[0-9]{3}`, which describes a pattern consisting of either three or four lowercase letters followed by any three digits.
+
+The different versions of regular expressions have different names:  
+* Basic regular expressions;  
+* Extended (POSIX) regular expressions;  
+* Perl-Compatible regular expressions (PCRE).  
+We will assume Extended regular expressions in this book.
+
+We will focus on the use of regular expressions with R in this book, but the concepts are the same whatever the software system. R consumes backslashes in text, so it is necessary to type a double backslash in order to obtain a single backslash in a regular expression. 
+
+Regular expressions are a small computer language of their own and should be developed with discipline and care. A complex regular expression should be built up in smaller pieces in order to understand how each component of the regular expression works before adding further components.
+
+### 9.9.3 Case study: Rusty wheat
+
+As part of a series of field trials, data were gathered on the effect of the disease *Septoria tritici* on wheat. In 2007, due to unusual climatic conditions, two other diseases, brown rust and yellow rust were observed to be quite prevalent. The data collection forms had no specific field for recording the amount of rust on each wheat plant---the focus of this example. This lack of structure means that the rust data cannot be read into R using the functions that expect a regular format.
+
+Each line of data represents one wheat plant. If brown rust was present, the line contains the letters `rb`, followed by a space, followed by a number indicating the percentage of the plant affected by the rust (possibly with a percentage sign). If the plant was afflicted by yellow rust, the same pattern applies except that the letters `rj` are used.
+
+The first step is to get the data into R. We can do this using the `readLines()` function, which will create a character vector with one element for each line of recordings.
+```{r rust}
+wheat <- readLines("wheat.txt")
+wheat
+```
+We want to end up with are two variables, one recording the amount of brown rust on each plant and one recording the amount of yellow rust.
+
+The first thing we could do is find out which plants have any brown rust on them. The following code does this using the `grep()` function. The result is a vector of indices that tells us which lines contain the pattern we are searching for. 
+```{r}
+rbLines <- grep("rb [0-9]+", wheat)
+rbLines
+```
+The square brackets, `[` and `]`, are used to describe a character set that will be matched. Within the brackets we can specify individual characters or, as in this case, ranges of characters; 0-9 means any character between 0 and 9.
+
+The plus sign, `+`, is also a metacharacter, known as a modifier. It says that whatever immediately precedes the plus sign in the regular expression can repeat several times. In this case, `[0-9]+` will match one or more digits.
+
+The letters ‘r’, ‘b’, and the space are all literal, so the entire regular expression will match the letters `rb`, followed by a space, followed by one or more digits.
+
+The indices from the call to `grep()` can be used to subset out just the relevant lines of data.
+```{r}
+wheat[rbLines]
+```
+
+The first step is to reduce the line down to just the information about brown rust. In other words, we want to discard everything except the pattern that we are looking for, `rb` followed by a space, followed by one or more digits.
+```{r}
+rbOnly <- gsub("^.*(rb [0-9]+).*$", "\\1", wheat[rbLines])
+rbOnly
+```
+The metacharacter “hat”, `^`, matches the start of the line and the full stop, `.`, matches any single character. The `*` character is similar to the `+`, i.e., it modifies the immediately preceding part of the expression and allows for zero or more occurrences. Thus, the expression `^.*` allows for any number of characters at the start of the text (including zero characters, or an empty piece of text).
+
+The parentheses, `(` and `)`, are used to create **subpatterns** within a regular expression. In this case, we are isolating the pattern `rb [0-9]+`, which matches the brown rust information that we are looking for. Parentheses are useful if we want a modifier, like `+` or `*`, to affect a whole subpattern rather than a single character, and they can be useful when specifying the replacement text in a search.
+
+After the parenthesized subpattern, we have another `.*` expression to allow for any number of additional characters. A dollar sign, `$`, is the counterpart to `^`, i.e., it matches the end of a piece of text.
+
+The complete regular expression explicitly matches an entire piece of text that contains information on brown rust. The **backreference**, `\\1` allows us to replace the entire text with only the piece that we want to keep.
+
+The final step is to extract just the numeric data from the brown rust information. One approach is to take the text values that contain just the brown rust information and throw away everything except the numbers.
+```{r}
+gsub("[^0-9]", "", rbOnly)
+```
+Using `^` as the first character within the square brackets has the effect of negating the set of characters within the brackets, so `[^0-9]` means any character that is not a digit. The `gsub()` replaces anything that is not a digit with an empty piece of text, so only the digits remain.
+
+An alternative approach is to drop the first three characters from each piece of text. The following code does this with a call to `substring()`.
+```{r}
+substring(rbOnly, 4)
+```
+The first argument to `substring()` is the text to reduce and the second argument specifies which character to start from.
+
+The name of this function comes from the fact that text values, or character values, are also referred to as **strings**.
+
+The final approach works with the entire original text, `wheat[rbLines]`, and uses a regular expression containing an extra set of parentheses to isolate just the numeric content of the brown rust information as a subpattern. The replacement text refers to this second subpattern, `\\2`, so it reduces the entire line to only the part of the line that is the numbers within the brown rust information.
+```{r}
+gsub("^.*(rb ([0-9]+)).*$", "\\2", wheat[rbLines])
+```
+
+We want to produce a variable that contains the brown rust information for all plants. We will use `NA` for plants that were not a✏icted.
+
+Create a vector of NAs and then fill in the rows for which we have brown rust information. The other important detail in the following code is the conversion of the textual information into numeric values using `as.numeric()`.
+
+```{r}
+rb <- rep(NA, length(wheat))
+rb[rbLines] <- as.numeric(gsub("^.*(rb ([0-9]+)).*$", "\\2", wheat[rbLines]))
+rb
+```
+
+To complete the exercise, we need to repeat the process for yellow rust. This time, we will use `regexpr()` rather than `grep()` to find the lines that we want. We are now searching for the lines containing yellow rust data.
+```{r}
+rjData <- regexpr("rj [0-9]+", wheat)
+rjData
+```
+The result is a numeric vector with a positive number for lines that contain yellow rust data and -1 otherwise. The number indicates the character where the data start.
+
+The result also has an attribute called `match.length`, which contains the number of characters that produced the match with the regular expression that we were searching for. In both cases, the pattern matched a total of 5 characters: the letters r and j, followed by a space, followed by two digits. This length information is particularly useful because it will allow us to extract the yellow rust data immediately using `substring()`. This time we specify both a start and an end character for the subset of the text.
+```{r}
+rjText <- substring(wheat, rjData, attr(rjData, "match.length"))
+rjText
+```
+
+The following code produces the final result, including both brown and yellow rust as a data frame.
+```{r}
+rj <- as.numeric(substring(rjText, 4))
+data.frame(rb=rb, rj=rj)
+```
+
+#### Recap
+
+Text processing includes:  
+* searching within text for a pattern;  
+* replacing the text that matches a pattern;  
+* splitting text into smaller pieces;  
+* combining smaller pieces of text into larger pieces of text;  
+* converting other types of data into text.  
+
+
+
