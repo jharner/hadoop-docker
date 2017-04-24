@@ -20,19 +20,19 @@ services:
     volumes:
       - ./data/hadoop:/opt/hadoop
     ports:
-      - "9000:9000"
-      - "50070:50070"
+      - "9000:9000" # Hadoop
+      - "50070:50070" # HadoopUI Access
   rstudio:
     build: ./rstudio
     image: jh-rstudio
     ports:
-      - "8787:8787"
+      - "8787:8787" # RstudioUI
     links:
       - hadoop
-#      - hbase
       - postgres
     volumes:
       - ./data/rstudio:/home/rstudio
+      - ./willtest:/home/rstudio/tests # TEMPORARY directory of test scripts
     depends_on: 
       - hadoop
       - hive
