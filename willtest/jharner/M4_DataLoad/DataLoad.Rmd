@@ -690,7 +690,7 @@ cp = c(list.files("/usr/lib/hadoop/lib", pattern="jar$", full.names=T),
 .jinit(classpath=cp)
 
 hivedrv <- JDBC("org.apache.hive.jdbc.HiveDriver",
-                "/usr/lib/hive/lib/hive-jdbc.jar", identifier.quote="`")
+                "/opt/hive/lib/hive-jdbc-2.1.1.jar", identifier.quote="`")
 
 conn <- dbConnect(hivedrv, "jdbc:hive2://gofirst.hpc.wvu.edu:10000/default", user=user)
 
