@@ -31,7 +31,7 @@ ENV HADOOP_CMD /opt/hadoop/bin/hadoop
 # Set environment variable for rJava package installation
 ENV LD_LIBRARY_PATH $JAVA_HOME/jre/lib/amd64:$JAVA_HOME/jre/lib/amd64/server
 # Install R packages (removed hbase)
-RUN Rscript -e "install.packages(c(\"rjson\",\"bit64\",\"bit\",\"functional\",\"RJSONIO\",\"R.methodsS3\",\"reshape2\",\"datadr\",\"trelliscope\",\"DBI\",\"RPostgreSQL\",\"RJDBC\", \"rsparkling\", \"testthat\", \"roxygen2\", \"sparklyr\", \"XML\"))"
+RUN Rscript -e "install.packages(c(\"rjson\",\"bit64\",\"bit\",\"functional\",\"RJSONIO\",\"R.methodsS3\",\"reshape2\",\"datadr\",\"trelliscope\",\"DBI\",\"RPostgreSQL\",\"RJDBC\", \"rsparkling\", \"testthat\", \"roxygen2\", \"sparklyr\", \"XML\", \"housingData\"))"
 #Copy repository packages to filesystem
 ADD rhdfs.tar.gz ravro.tar.gz rmr.tar.gz plyrmr.tar.gz rjava.tar.gz Rhipe_0.75.2_hadoop-2.tar.gz /tmp/pkgs/
 # Install repository packages
@@ -43,9 +43,9 @@ RUN cd /tmp/pkgs && R CMD INSTALL rJava ravro rmr2 plyrmr rhdfs Rhipe
 ####################
 # Install Spark
 RUN cd /opt && \
-	wget --quiet http://apache.osuosl.org/spark/spark-2.0.1/spark-2.0.1-bin-hadoop2.7.tgz && \
-	tar zxf spark-2.0.1-bin-hadoop2.7.tgz && \
-	mv spark-2.0.1-bin-hadoop2.7 spark && \
+	wget --quiet http://apache.osuosl.org/spark/spark-2.1.0/spark-2.1.0-bin-hadoop2.7.tgz && \
+	tar zxf spark-2.1.0-bin-hadoop2.7.tgz && \
+	mv spark-2.1.0-bin-hadoop2.7 spark && \
 	cp spark/conf/spark-env.sh.template spark/conf/spark-env.sh && \
 	echo "export SPARK_DIST_CLASSPATH=$(/opt/hadoop/bin/hadoop classpath)" >> spark/conf/spark-env.sh
 
