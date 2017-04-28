@@ -684,15 +684,15 @@ However, the installation is not complete and thus we are very limited in what c
 Here is a simple example of interfacing with hive from R:
 ```{r}
 library(RJDBC)
-cp = c(list.files("/usr/lib/hadoop/lib", pattern="jar$", full.names=T),
-       list.files("/usr/lib/hive/lib", pattern="jar$", full.names=T),
-       list.files("/usr/lib/hadoop", pattern="jar$", full.names=T))
+cp = c(list.files("/opt/hadoop/lib", pattern="jar$", full.names=T),
+       list.files("/opt/hive/lib", pattern="jar$", full.names=T),
+       list.files("/opt/hadoop", pattern="jar$", full.names=T))
 .jinit(classpath=cp)
 
 hivedrv <- JDBC("org.apache.hive.jdbc.HiveDriver",
                 "/opt/hive/lib/hive-jdbc-2.1.1.jar", identifier.quote="`")
 
-conn <- dbConnect(hivedrv, "jdbc:hive2://gofirst.hpc.wvu.edu:10000/default", user=user)
+conn <- dbConnect(hivedrv, "jdbc:hive2://hive:10000/default", user=user)
 
 show_tables <- dbGetQuery(conn, "show tables")
 show_tables
