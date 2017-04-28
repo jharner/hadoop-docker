@@ -23,6 +23,8 @@ if [ ! -d "${PGDATA}/base" ]; then
 	psql -p ${tmpport} --command "CREATE USER hive"
 	createdb -p ${tmpport} -O hive hive
 	createdb -p ${tmpport} -O rstudio dataexpo
+	createdb -p ${tmpport} -O rstudio testdb
+
 	psql -p ${tmpport} -U rstudio dataexpo </opt/dataexpo.sql >/dev/null
 	#just to be sure, as there were problems accessing this once
 	psql -p ${tmpport} --command "GRANT ALL PRIVILEGES ON DATABASE dataexpo TO rstudio"
