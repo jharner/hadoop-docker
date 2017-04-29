@@ -37,5 +37,10 @@
 	<name>dfs.replication</name>
 	<value>1</value>
 </property>
+<!-- Permissions set to false! -->
+<property>
+  <name>dfs.permissions</name>
+  <value>false</value>
+</property>
 </configuration>
 
