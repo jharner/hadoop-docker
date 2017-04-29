@@ -73,7 +73,7 @@ hdfs.init()
 
 You must have an account on our installed HDFS. The directories and files in my home directory are listed by the `hdfs.ls` function.
 ```{r}
-hdfs.ls(path="/user/eharner")
+hdfs.ls(path="/user/rstudio")
 ```
 For a full list of hdfs functions see the help pages for the `rhdfs` package.
 
