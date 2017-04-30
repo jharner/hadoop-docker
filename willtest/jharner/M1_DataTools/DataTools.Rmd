@@ -390,15 +390,15 @@ This course will use two common R interfaces to Hadoop and Spark:
 Initially we will foucs on the `SparkR` package interface, which is directly integrated into Spark. You can create a SparkContext using `sparkR.init` and pass in options such as the application name , any spark packages depended on, etc. By default, `sparkEnvir = list(spark.driver.memory="4g")`, i.e., you are allocated 4 GB.
 ```{r}
 library(SparkR)
-sc <- sparkR.init(master = spark.master)
+#sc <- sparkR.init(master = spark.master)
 
 # If you run Spark 2.0, you do not need to create a Spark Context. You can simpley create a SparkR session.
-# sparkR.session(sparkConfig = list(spark.driver.memory = '4g'))
+sparkR.session(sparkConfig = list(spark.driver.memory = '4g'))
 ```
 The returned `SparkContext` (`sc`) connects this R program to the Spark cluster. The `yarn-client` value for `master` (see the setup chunk) specifies that Spark will run on the YARN cluster, which has three worker nodes.
 
 To work with DataFrames we will need a `SQLContext`, which can be created from the `SparkContext`.
-```{r}
+```
 sqlContext <- sparkRSQL.init(sc)
 
 # In Spark 2.0 you do not need to create a SQLContext
@@ -409,11 +409,11 @@ We can use `createDataFrame` and pass in the local R data frame to create a spar
 ```{r}
 library(magrittr)
 
-faithful.df <- createDataFrame(sqlContext, faithful)
-head(faithful.df)
+#faithful.df <- createDataFrame(sqlContext, faithful)
+#head(faithful.df)
 
 # In Spark 2.0 simply use:
-# faithful.df <- as.DataFrame(faithful)
+faithful.df <- as.DataFrame(faithful)
 
 # Select the eruptions column using pipes
 head(faithful.df %>% select(faithful.df$eruptions))
