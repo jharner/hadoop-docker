@@ -1,12 +1,4 @@
 version: '2'
-networks:
-  default:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.28.0.0/16
-
 services:
   postgres:
     build: ./postgres
@@ -15,9 +7,6 @@ services:
       - "5432:5432"
     volumes:
       - ./data/pg-data:/opt/pg-data
-    networks:
-      default:
-        ipv4_address: 172.28.0.4
   hive:
     build: ./hive
     image: jh-hive
@@ -25,9 +14,6 @@ services:
       - "10000:10000"
     depends_on:
       - hadoop
-    networks:
-      default:
-        ipv4_address: 172.28.0.3
   hadoop:
     build: ./hadoop
     image: jh-hadoop
@@ -36,9 +22,6 @@ services:
     ports:
       - "9000:9000" # Hadoop
       - "50070:50070" # HadoopUI Access
-    networks:
-      default:
-        ipv4_address: 172.28.0.5
   rstudio:
     build: ./rstudio
     image: jh-rstudio
@@ -53,6 +36,3 @@ services:
     depends_on: 
       - hadoop
       - hive
-    networks:
-      default:
-        ipv4_address: 172.28.0.2
