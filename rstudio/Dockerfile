@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y -t jessie-backports openjdk-8-jdk
 # config Java within R for rJava installation
 RUN sudo R CMD javareconf
 # Install Google Protocol Buffer
-ADD protobuf-2.5.0.tar.gz /tmp
-RUN cd /tmp/protobuf-2.5.0 && ./configure && make -j4 && make install && cd .. && rm -rf protobuf-*
+#ADD protobuf-2.5.0.tar.gz /tmp
+#RUN cd /tmp/protobuf-2.5.0 && ./configure && make -j4 && make install && cd .. && rm -rf protobuf-*
 
 ####################
 # HADOOP
@@ -33,10 +33,13 @@ ENV LD_LIBRARY_PATH $JAVA_HOME/jre/lib/amd64:$JAVA_HOME/jre/lib/amd64/server
 # Install R packages (removed hbase)
 RUN Rscript -e "install.packages(c(\"rjson\",\"bit64\",\"bit\",\"functional\",\"RJSONIO\",\"R.methodsS3\",\"reshape2\",\"datadr\",\"trelliscope\",\"DBI\",\"RPostgreSQL\",\"RJDBC\", \"rsparkling\", \"testthat\", \"roxygen2\", \"sparklyr\", \"XML\", \"housingData\"))"
 #Copy repository packages to filesystem
-ADD rhdfs.tar.gz ravro.tar.gz rmr.tar.gz plyrmr.tar.gz rjava.tar.gz Rhipe_0.75.2_hadoop-2.tar.gz /tmp/pkgs/
+ADD rhdfs.tar.gz ravro.tar.gz rmr.tar.gz plyrmr.tar.gz rjava.tar.gz /tmp/pkgs/
 # Install repository packages
-RUN cd /tmp/pkgs && R CMD INSTALL rJava ravro rmr2 plyrmr rhdfs Rhipe
+RUN cd /tmp/pkgs && R CMD INSTALL rJava ravro rmr2 plyrmr rhdfs
 
+ADD protobuf-2.5.0.tar.gz Rhipe_0.75.2_hadoop-2.tar.gz /tmp/
+RUN cd /tmp/protobuf-2.5.0 && ./configure --prefix=/usr && make && make install && cd .. && rm -rf protobuf-*
+RUN cd /tmp/Rhipe && R CMD INSTALL . && cd .. && rm -rf Rhipe
 
 ####################
 # SPARK
@@ -71,6 +74,9 @@ ADD core-site.xml /opt/hadoop/etc/hadoop/
 ADD log4j.properties /opt/hadoop/etc/hadoop/
 # Create symlink to actual Rscript
 RUN ln -s /usr/local/bin/Rscript /usr/bin/Rscript
+ENV HADOOP_HOME /opt/hadoop
+ENV HADOOP_BIN /opt/hadoop/bin
+ENV HADOOP_CONF_DIR /opt/hadoop/etc/hadoop
 
 
 

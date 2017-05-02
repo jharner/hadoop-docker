@@ -60,6 +60,7 @@ HADOOP_BIN=/opt/hadoop/bin
 HADOOP_HOME=/opt/hadoop
 HADOOP_PREFIX=/opt/hadoop
 HADOOP_COMMON_HOME=/opt/hadoop
+HADOOP_LIBS=/opt/hadoop/etc/hadoop:/opt/hadoop-2.7.1/share/hadoop/common/lib/:/opt/hadoop-2.7.1/share/hadoop/common/:/opt/hadoop-2.7.1/share/hadoop/hdfs:/opt/hadoop-2.7.1/share/hadoop/hdfs/lib/:/opt/hadoop-2.7.1/share/hadoop/hdfs/:/opt/hadoop-2.7.1/share/hadoop/yarn/lib/:/opt/hadoop-2.7.1/share/hadoop/yarn/:/opt/hadoop-2.7.1/share/hadoop/mapreduce/lib/:/opt/hadoop-2.7.1/share/hadoop/mapreduce/:/opt/hadoop/contrib/capacity-scheduler/.jar
 HADOOP_HDFS_HOME=/opt/hadoop
 HADOOP_MAPRED_HOME=/opt/hadoop
 HADOOP_YARN_HOME=/opt/hadoop
