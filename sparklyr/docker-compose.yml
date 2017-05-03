@@ -1,0 +1,9 @@
+version: '2'
+services:
+  rstudio:
+    build: .
+    image: sparklyrstudio
+    ports:
+      - "8787:8787" #rstudio webUI
+    volumes:
+      - ./data/rstudio:/home/rstudio
