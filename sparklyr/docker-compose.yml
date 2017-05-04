@@ -6,4 +6,6 @@ services:
     ports:
       - "8787:8787" #rstudio webUI
     volumes:
-      - ./data/rstudio:/home/rstudio
+      - ../data/rstudio:/home/rstudio
+      - ../willtest:/home/rstudio/tests # TEMPORARY directory of test scripts
+
