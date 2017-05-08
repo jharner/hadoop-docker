@@ -31,7 +31,7 @@ ENV HADOOP_CMD /opt/hadoop/bin/hadoop
 # Set environment variable for rJava package installation
 ENV LD_LIBRARY_PATH $JAVA_HOME/jre/lib/amd64:$JAVA_HOME/jre/lib/amd64/server
 # Install R packages (removed hbase)
-RUN Rscript -e "install.packages(c(\"rjson\",\"bit64\",\"bit\",\"functional\",\"RJSONIO\",\"R.methodsS3\",\"reshape2\",\"datadr\",\"trelliscope\",\"DBI\",\"RPostgreSQL\",\"RJDBC\", \"rsparkling\", \"testthat\", \"roxygen2\", \"sparklyr\", \"XML\", \"housingData\"))"
+RUN Rscript -e "install.packages(c(\"rjson\",\"bit64\",\"bit\",\"functional\",\"RJSONIO\",\"R.methodsS3\",\"reshape2\",\"datadr\",\"trelliscope\",\"DBI\",\"RPostgreSQL\",\"RJDBC\", \"rsparkling\", \"testthat\", \"roxygen2\", \"sparklyr\", \"XML\", \"housingData\", \"flexdashboard\"))"
 #Copy repository packages to filesystem
 ADD rhdfs.tar.gz ravro.tar.gz rmr.tar.gz plyrmr.tar.gz rjava.tar.gz /tmp/pkgs/
 # Install repository packages
