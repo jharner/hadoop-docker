@@ -10,6 +10,7 @@ services:
     volumes:
       - ../data/rstudio:/home/rstudio
       - ../willtest:/home/rstudio/tests # TEMPORARY directory of test scripts
+      - ../jhtest:/home/rstudio/jhtest # TEMPORARY directory for Dr. Harner module work
   postgres:
       build: ../postgres
       image: jh-postgres
