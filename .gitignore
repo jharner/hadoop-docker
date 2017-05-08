@@ -4,8 +4,15 @@ hbase/testConnection.jar
 pgdata
 data/pg-data
 data/hadoop
-data/rstudio
+data/rstudio/.config
+data/rstudio/.ivy2
+data/rstudio/.Rhistory
+data/rstudio/.rstudio
+data/rstudio/kitematic
+data/rstudio/R
+data/rstudio/tests
 dist/data
 .Rapp.history
 .DS_Store
 willtest/.*
+willtest/*.html
